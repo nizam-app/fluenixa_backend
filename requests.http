@@ -1,0 +1,180 @@
+@host = http://localhost:5000
+@base = {{host}}/api/v1
+@organizerToken = paste-token-here
+@providerToken = paste-token-here
+@adminToken = paste-token-here
+
+###
+# Health
+GET {{base}}/health
+
+###
+# Auth — register organizer
+POST {{base}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "organizer@flunexia.org",
+  "password": "Password123!",
+  "name": "Demo Organizer",
+  "accountType": "organizer",
+  "organizationType": "Municipality"
+}
+
+###
+# Auth — register provider
+POST {{base}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "supplier@flunexia.org",
+  "password": "Password123!",
+  "name": "Demo Provider",
+  "accountType": "provider",
+  "providerType": "Transport"
+}
+
+###
+# Auth — bootstrap the first admin (only allowed once)
+POST {{base}}/auth/bootstrap-admin
+Content-Type: application/json
+
+{
+  "email": "admin@flunexia.org",
+  "password": "Password123!",
+  "name": "Flunexia Admin",
+  "bootstrapKey": "change-me-in-env"
+}
+
+###
+# Auth — login
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "organizer@flunexia.org",
+  "password": "Password123!"
+}
+
+###
+# Auth — current user
+GET {{base}}/auth/me
+Authorization: Bearer {{organizerToken}}
+
+###
+# Users — update profile
+PATCH {{base}}/users/me
+Authorization: Bearer {{organizerToken}}
+Content-Type: application/json
+
+{
+  "name": "Updated Name",
+  "organizationType": "School"
+}
+
+###
+# Users — change password
+PATCH {{base}}/users/me/password
+Authorization: Bearer {{organizerToken}}
+Content-Type: application/json
+
+{
+  "currentPassword": "Password123!",
+  "newPassword": "NewPassword123!"
+}
+
+###
+# Trips — list (role-scoped)
+GET {{base}}/trips
+Authorization: Bearer {{organizerToken}}
+
+###
+# Trips — create
+POST {{base}}/trips
+Authorization: Bearer {{organizerToken}}
+Content-Type: application/json
+
+{
+  "title": "Spring school field trip",
+  "description": "A 3-day trip to the coast for 40 students",
+  "location": "Marseille, France",
+  "startDate": "2026-05-12",
+  "endDate": "2026-05-14",
+  "participants": 40,
+  "needTypes": ["Transport", "Hotel", "Activity"],
+  "status": "published"
+}
+
+###
+# Trips — upload image (replace :id and provide a local file)
+POST {{base}}/trips/REPLACE_TRIP_ID/image
+Authorization: Bearer {{organizerToken}}
+Content-Type: multipart/form-data; boundary=----RequestsBoundary
+
+------RequestsBoundary
+Content-Disposition: form-data; name="image"; filename="trip.jpg"
+Content-Type: image/jpeg
+
+< ./trip.jpg
+------RequestsBoundary--
+
+###
+# Requests — create
+POST {{base}}/requests
+Authorization: Bearer {{organizerToken}}
+Content-Type: application/json
+
+{
+  "trip": "REPLACE_TRIP_ID",
+  "needType": "Transport",
+  "message": "Looking for a 50-seater coach for the dates above."
+}
+
+###
+# Requests — provider browses
+GET {{base}}/requests
+Authorization: Bearer {{providerToken}}
+
+###
+# Offers — provider submits
+POST {{base}}/requests/REPLACE_REQUEST_ID/offers
+Authorization: Bearer {{providerToken}}
+Content-Type: application/json
+
+{
+  "description": "Air-conditioned 50-seater coach, driver included.",
+  "price": 1200,
+  "currency": "EUR"
+}
+
+###
+# Offers — organizer accepts
+PATCH {{base}}/offers/REPLACE_OFFER_ID/status
+Authorization: Bearer {{organizerToken}}
+Content-Type: application/json
+
+{
+  "status": "accepted"
+}
+
+###
+# Contact — public form
+POST {{base}}/contact
+Content-Type: application/json
+
+{
+  "name": "Curious User",
+  "email": "hello@example.com",
+  "role": "organizer",
+  "message": "Could we get a demo for our municipality next week?"
+}
+
+###
+# Admin — stats
+GET {{base}}/admin/stats
+Authorization: Bearer {{adminToken}}
+
+###
+# Admin — list users
+GET {{base}}/admin/users?role=organizer
+Authorization: Bearer {{adminToken}}
