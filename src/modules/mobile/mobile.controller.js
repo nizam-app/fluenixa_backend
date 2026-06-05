@@ -27,6 +27,8 @@ const MOBILE_CONFIG = {
     cloudinaryUploads: true,
     passwordReset: true,
     offlineMode: false,
+    /** Organizer↔provider chat is not available — use notifications + request.message in v1 */
+    messaging: false,
   },
   needTypes: ['Transport', 'Activity', 'Restaurant', 'Hotel', 'Other Service'],
   stitchProjectId: STITCH_PROJECT_ID,
@@ -52,18 +54,18 @@ const getDashboard = asyncHandler(async (req, res) => {
   if (role === 'organizer') {
     const requestIds = await ServiceRequest.find({ organizer: userId }).distinct('_id')
 
-    const [trips, requests, offers, pendingRequests, acceptedRequests, tripCount, newOffers] =
+    const [trips, requests, offers, pendingRequests, acceptedRequests, tripCount, newOffers, acceptedOffers, completedBookings] =
       await Promise.all([
         Trip.find({ organizer: userId }).sort({ updatedAt: -1 }).limit(5),
         ServiceRequest.find({ organizer: userId })
-          .populate('trip', 'title location startDate status')
+          .populate('trip', 'title location startDate status image needTypes budgetEstimate budgetCurrency')
           .sort({ updatedAt: -1 })
           .limit(5),
         Offer.find({ request: { $in: requestIds } })
           .populate('provider', 'name email providerType')
           .populate({
             path: 'request',
-            populate: { path: 'trip', select: 'title location startDate status' },
+            populate: { path: 'trip', select: 'title location startDate status image needTypes' },
           })
           .sort({ createdAt: -1 })
           .limit(5),
@@ -71,6 +73,8 @@ const getDashboard = asyncHandler(async (req, res) => {
         ServiceRequest.countDocuments({ organizer: userId, status: 'accepted' }),
         Trip.countDocuments({ organizer: userId }),
         Offer.countDocuments({ request: { $in: requestIds }, status: 'submitted' }),
+        Offer.countDocuments({ request: { $in: requestIds }, status: 'accepted' }),
+        ServiceRequest.countDocuments({ organizer: userId, status: 'completed' }),
       ])
 
     res.json({
@@ -80,6 +84,9 @@ const getDashboard = asyncHandler(async (req, res) => {
       stats: {
         trips: tripCount,
         pendingRequests,
+        acceptedOffers,
+        completedBookings,
+        /** @deprecated use acceptedOffers — kept for older mobile builds */
         acceptedRequests,
         newOffers,
       },
@@ -98,14 +105,26 @@ const getDashboard = asyncHandler(async (req, res) => {
       $or: [{ provider: userId }, { provider: { $exists: false } }, { provider: null }],
     }
 
-    const [availableRequests, myOffers, submittedOffers] = await Promise.all([
+    const [
+      availableRequests,
+      myOffers,
+      submittedOffers,
+      availableCount,
+      acceptedOffers,
+      completedBookings,
+      rejectedOffers,
+    ] = await Promise.all([
       ServiceRequest.find(requestFilter)
-        .populate('trip', 'title location startDate participants status needTypes')
-        .populate('organizer', 'name organizationType')
+        .populate('trip', 'title location startDate endDate participants status needTypes image')
+        .populate('organizer', 'name organizationType avatar')
         .sort({ createdAt: -1 })
         .limit(8),
       Offer.find({ provider: userId }).sort({ updatedAt: -1 }).limit(5),
       Offer.countDocuments({ provider: userId, status: 'submitted' }),
+      ServiceRequest.countDocuments(requestFilter),
+      Offer.countDocuments({ provider: userId, status: 'accepted' }),
+      ServiceRequest.countDocuments({ provider: userId, status: 'completed' }),
+      Offer.countDocuments({ provider: userId, status: 'rejected' }),
     ])
 
     res.json({
@@ -113,9 +132,13 @@ const getDashboard = asyncHandler(async (req, res) => {
       role,
       unreadCount,
       stats: {
-        availableRequests: await ServiceRequest.countDocuments(requestFilter),
+        availableRequests: availableCount,
         submittedOffers,
-        acceptedOffers: await Offer.countDocuments({ provider: userId, status: 'accepted' }),
+        /** Alias for Stitch “Pending Responses” */
+        pendingResponses: submittedOffers,
+        acceptedOffers,
+        completedBookings,
+        rejectedOffers,
       },
       recent: {
         requests: availableRequests,

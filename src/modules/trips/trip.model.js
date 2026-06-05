@@ -2,25 +2,19 @@ const mongoose = require('mongoose')
 
 const NEED_TYPES = ['Transport', 'Activity', 'Restaurant', 'Hotel', 'Other Service']
 const TRIP_STATUSES = ['draft', 'published', 'scheduled', 'in_progress', 'completed', 'cancelled']
+const BOOKING_MODES = ['multi_provider', 'bundled']
 
-const itineraryStopSchema = new mongoose.Schema(
+const itineraryLegSchema = new mongoose.Schema(
   {
-    label: {
-      type: String,
-      required: true,
-      trim: true,
-      maxlength: 120,
-    },
-    detail: {
-      type: String,
-      trim: true,
-      maxlength: 240,
-    },
-    type: {
-      type: String,
-      trim: true,
-      maxlength: 80,
-    },
+    label: { type: String, trim: true, maxlength: 120 },
+    detail: { type: String, trim: true, maxlength: 240 },
+    type: { type: String, trim: true, maxlength: 80 },
+    date: { type: String, trim: true, maxlength: 32 },
+    time: { type: String, trim: true, maxlength: 16 },
+    pickup: { type: String, trim: true, maxlength: 180 },
+    destination: { type: String, trim: true, maxlength: 180 },
+    location: { type: String, trim: true, maxlength: 180 },
+    durationDays: { type: Number, min: 0, max: 365 },
   },
   { _id: false },
 )
@@ -99,8 +93,39 @@ const tripSchema = new mongoose.Schema(
       maxlength: 3,
       default: 'EUR',
     },
+    bookingMode: {
+      type: String,
+      enum: BOOKING_MODES,
+      default: 'multi_provider',
+    },
+    category: {
+      type: String,
+      trim: true,
+      maxlength: 80,
+    },
+    joinedCount: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    entryFee: {
+      type: Number,
+      min: 0,
+    },
+    entryFeeCurrency: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      maxlength: 3,
+      default: 'EUR',
+    },
+    tripNote: {
+      type: String,
+      trim: true,
+      maxlength: 240,
+    },
     itinerary: {
-      type: [itineraryStopSchema],
+      type: [itineraryLegSchema],
       default: [],
     },
   },
@@ -155,4 +180,4 @@ tripSchema.post('deleteMany', async function cascadeOnDeleteManyDone() {
 
 const Trip = mongoose.model('Trip', tripSchema)
 
-module.exports = { NEED_TYPES, TRIP_STATUSES, Trip }
+module.exports = { BOOKING_MODES, NEED_TYPES, TRIP_STATUSES, Trip }

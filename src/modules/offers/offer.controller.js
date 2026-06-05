@@ -7,14 +7,18 @@ const { HttpError } = require('../../utils/httpError')
 const { paginateQuery, parsePagination } = require('../../utils/pagination')
 const { OFFER_STATUSES, Offer } = require('./offer.model')
 
+const AUTO_REJECT_REASON = 'Another offer was selected for this request.'
+const TRIP_SUMMARY_FIELDS =
+  'title location startDate endDate participants status needTypes description image'
+
 function populateOffer(query) {
   return query
-    .populate('provider', 'name email role providerType')
+    .populate('provider', 'name email role providerType avatar rating reviewCount')
     .populate({
       path: 'request',
       populate: [
-        { path: 'trip', select: 'title location startDate participants status needTypes' },
-        { path: 'organizer', select: 'name email role organizationType' },
+        { path: 'trip', select: TRIP_SUMMARY_FIELDS },
+        { path: 'organizer', select: 'name email role organizationType avatar' },
       ],
     })
 }
@@ -46,11 +50,21 @@ function getOfferQueryForUser(user) {
 }
 
 const listOffers = asyncHandler(async (req, res) => {
-  const { status, request } = req.query
+  const { status, request, requestStatus } = req.query
   const query = getOfferQueryForUser(req.user)
 
   if (status) query.status = status
-  if (request) query.request = request
+
+  if (requestStatus) {
+    const requestIds = await ServiceRequest.find({ status: requestStatus }).distinct('_id')
+    if (request) {
+      query.request = requestIds.some((id) => String(id) === String(request)) ? request : { $in: [] }
+    } else {
+      query.request = { $in: requestIds }
+    }
+  } else if (request) {
+    query.request = request
+  }
 
   const pagination = parsePagination(req.query)
 
@@ -151,6 +165,7 @@ const createOffer = asyncHandler(async (req, res) => {
       description: req.body.description.trim(),
       price: req.body.price,
       currency: req.body.currency || 'EUR',
+      tier: req.body.tier || 'standard',
     })
 
     const populatedOffer = await populateOffer(Offer.findById(offer._id))
@@ -188,7 +203,7 @@ async function applyAcceptedOffer(offer) {
 
       await Offer.updateMany(
         { request: requestId, _id: { $ne: offer._id }, status: 'submitted' },
-        { $set: { status: 'rejected' } },
+        { $set: { status: 'rejected', rejectionReason: AUTO_REJECT_REASON } },
         { session },
       )
 
@@ -209,7 +224,7 @@ async function applyAcceptedOffer(offer) {
       await offer.save()
       await Offer.updateMany(
         { request: requestId, _id: { $ne: offer._id }, status: 'submitted' },
-        { $set: { status: 'rejected' } },
+        { $set: { status: 'rejected', rejectionReason: AUTO_REJECT_REASON } },
       )
       await ServiceRequest.findByIdAndUpdate(requestId, {
         status: 'accepted',
@@ -243,17 +258,26 @@ const updateOfferStatus = asyncHandler(async (req, res) => {
     if (String(offer.request.organizer) !== String(req.user._id)) {
       throw new HttpError('Offer not found', 404)
     }
-    if (!['accepted', 'rejected'].includes(req.body.status)) {
+    if (req.body.status && !['accepted', 'rejected'].includes(req.body.status)) {
       throw new HttpError('Organizers can only accept or reject offers', 403)
     }
   }
 
   const newStatus = req.body.status
 
+  if (req.body.tier && req.user.role === 'organizer') {
+    offer.tier = req.body.tier
+  }
+
   if (newStatus === 'accepted') {
     await applyAcceptedOffer(offer)
-  } else {
+  } else if (newStatus) {
+    if (newStatus === 'rejected' && req.user.role === 'organizer' && req.body.rejectionReason) {
+      offer.rejectionReason = req.body.rejectionReason.trim()
+    }
     offer.status = newStatus
+    await offer.save()
+  } else if (req.body.tier) {
     await offer.save()
   }
 
@@ -269,13 +293,20 @@ const updateOfferStatus = asyncHandler(async (req, res) => {
       offer: offer._id,
     })
   } else if (newStatus === 'rejected') {
+    const populatedForNotify = populatedOffer || (await populateOffer(Offer.findById(offer._id)))
+    const feedback =
+      populatedForNotify?.rejectionReason ||
+      'Your offer was not selected for this request'
     await notifyUser(offer.provider, {
       type: 'offer_rejected',
       title: 'Offer declined',
-      body: 'Your offer was not selected for this request',
+      body: feedback,
       trip: offer.request.trip,
       request: offer.request._id,
       offer: offer._id,
+      metadata: populatedForNotify?.rejectionReason
+        ? { rejectionReason: populatedForNotify.rejectionReason }
+        : undefined,
     })
   } else if (newStatus === 'withdrawn') {
     await notifyUser(offer.request.organizer, {
@@ -294,11 +325,49 @@ const updateOfferStatus = asyncHandler(async (req, res) => {
   })
 })
 
+const updateOffer = asyncHandler(async (req, res) => {
+  const offer = await Offer.findById(req.params.id)
+  if (!offer) throw new HttpError('Offer not found', 404)
+
+  if (String(offer.provider) !== String(req.user._id)) {
+    throw new HttpError('Offer not found', 404)
+  }
+
+  if (offer.status !== 'submitted') {
+    throw new HttpError('Only pending (submitted) offers can be updated', 400)
+  }
+
+  const request = await ServiceRequest.findById(offer.request)
+  if (!request || request.status !== 'pending') {
+    throw new HttpError('This request is no longer open for proposals', 400)
+  }
+
+  if (req.body.description !== undefined) {
+    offer.description = req.body.description.trim()
+  }
+  if (req.body.price !== undefined) {
+    offer.price = req.body.price
+  }
+  if (req.body.currency !== undefined) {
+    offer.currency = req.body.currency
+  }
+
+  await offer.save()
+
+  const populatedOffer = await populateOffer(Offer.findById(offer._id))
+
+  res.json({
+    success: true,
+    offer: populatedOffer,
+  })
+})
+
 module.exports = {
   OFFER_STATUSES,
   createOffer,
   getOffer,
   listOffers,
   listOffersForRequest,
+  updateOffer,
   updateOfferStatus,
 }

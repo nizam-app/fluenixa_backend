@@ -13,12 +13,29 @@ const createUserSchema = z.object({
   role: z.enum(USER_ROLES),
   organizationType: z.string().trim().max(120).optional(),
   providerType: z.string().trim().max(120).optional(),
+  contactPerson: z.string().trim().max(120).optional(),
+  companyDescription: z.string().trim().max(2000).optional(),
   status: z.enum(USER_STATUSES).optional(),
 })
 
 const updateUserStatusSchema = z.object({
   status: z.enum(USER_STATUSES),
 })
+
+const updateUserSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120).optional(),
+    rating: z.coerce.number().min(0).max(5).optional(),
+    reviewCount: z.coerce.number().int().min(0).optional(),
+    providerType: z.string().trim().max(120).optional(),
+    organizationType: z.string().trim().max(120).optional(),
+    contactPerson: z.string().trim().max(120).optional(),
+    companyDescription: z.string().trim().max(2000).optional(),
+  })
+  .refine(
+    (value) => Object.keys(value).some((key) => value[key] !== undefined),
+    { message: 'At least one field must be provided' },
+  )
 
 const listUsersQuerySchema = z.object({
   role: z.enum(USER_ROLES).optional(),
@@ -51,6 +68,7 @@ module.exports = {
   listRequestsQuerySchema,
   listTripsQuerySchema,
   listUsersQuerySchema,
+  updateUserSchema,
   updateUserStatusSchema,
   userIdParamsSchema,
 }

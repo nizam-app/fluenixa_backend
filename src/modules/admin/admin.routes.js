@@ -9,6 +9,7 @@ const {
   listRequests,
   listTrips,
   listUsers,
+  updateUser,
   updateUserStatus,
 } = require('./admin.controller')
 const {
@@ -17,6 +18,7 @@ const {
   listRequestsQuerySchema,
   listTripsQuerySchema,
   listUsersQuerySchema,
+  updateUserSchema,
   updateUserStatusSchema,
   userIdParamsSchema,
 } = require('./admin.schemas')
@@ -30,6 +32,12 @@ router
   .route('/users')
   .get(validate({ query: listUsersQuerySchema }), listUsers)
   .post(writeLimiter, validate({ body: createUserSchema }), createUser)
+router.patch(
+  '/users/:id',
+  writeLimiter,
+  validate({ params: userIdParamsSchema, body: updateUserSchema }),
+  updateUser,
+)
 router.patch(
   '/users/:id/status',
   writeLimiter,

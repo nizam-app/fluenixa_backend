@@ -32,9 +32,12 @@ function getRequestQueryForUser(user) {
 
 function populateRequest(query) {
   return query
-    .populate('trip', 'title location startDate participants status needTypes')
-    .populate('organizer', 'name email role organizationType')
-    .populate('provider', 'name email role providerType')
+    .populate(
+      'trip',
+      'title location startDate endDate participants status needTypes description image accessibility budgetEstimate budgetCurrency',
+    )
+    .populate('organizer', 'name email role organizationType avatar')
+    .populate('provider', 'name email role providerType avatar')
     .populate('acceptedOffer')
 }
 

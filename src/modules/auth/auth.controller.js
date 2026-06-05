@@ -32,6 +32,8 @@ const register = asyncHandler(async (req, res) => {
     role,
     organizationType,
     providerType,
+    contactPerson,
+    companyDescription,
   } = req.body
   const selectedRole = (accountType || role || '').toLowerCase()
 
@@ -51,6 +53,9 @@ const register = asyncHandler(async (req, res) => {
     role: selectedRole,
     organizationType: selectedRole === 'organizer' ? organizationType : undefined,
     providerType: selectedRole === 'provider' ? providerType : undefined,
+    contactPerson: selectedRole === 'provider' && contactPerson ? contactPerson.trim() : undefined,
+    companyDescription:
+      selectedRole === 'provider' && companyDescription ? companyDescription.trim() : undefined,
   })
 
   res.status(201).json({

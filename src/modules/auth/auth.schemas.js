@@ -24,6 +24,8 @@ const registerSchema = z
     role: accountTypeField.optional(),
     organizationType: z.string().trim().max(120).optional(),
     providerType: z.string().trim().max(120).optional(),
+    contactPerson: z.string().trim().max(120).optional(),
+    companyDescription: z.string().trim().max(2000).optional(),
   })
   .refine((value) => Boolean(value.accountType || value.role), {
     message: 'accountType is required',

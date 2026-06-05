@@ -127,6 +127,23 @@ const createUser = asyncHandler(async (req, res) => {
   })
 })
 
+const updateUser = asyncHandler(async (req, res) => {
+  const updates = { ...req.body }
+  if (updates.name) updates.name = updates.name.trim()
+
+  const user = await User.findByIdAndUpdate(req.params.id, updates, {
+    new: true,
+    runValidators: true,
+  })
+
+  if (!user) throw new HttpError('User not found', 404)
+
+  res.json({
+    success: true,
+    user,
+  })
+})
+
 const updateUserStatus = asyncHandler(async (req, res) => {
   if (String(req.params.id) === String(req.user._id) && req.body.status !== 'active') {
     throw new HttpError('You cannot suspend your own admin account', 400)
@@ -205,5 +222,6 @@ module.exports = {
   listRequests,
   listTrips,
   listUsers,
+  updateUser,
   updateUserStatus,
 }

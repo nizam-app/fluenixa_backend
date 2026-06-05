@@ -2,6 +2,8 @@ const { asyncHandler } = require('../../utils/asyncHandler')
 const { HttpError } = require('../../utils/httpError')
 const { paginateQuery, parsePagination } = require('../../utils/pagination')
 const { NEED_TYPES, TRIP_STATUSES, Trip } = require('./trip.model')
+const { findRecommendedProvidersForTrip } = require('./tripRecommendations')
+const { assertCanViewTrip, assertOrganizerOwnsTrip } = require('./tripVisibility')
 const cloudinary = require('../../services/cloudinary')
 
 const ALLOWED_UPDATE_FIELDS = [
@@ -17,15 +19,14 @@ const ALLOWED_UPDATE_FIELDS = [
   'accessibility',
   'budgetEstimate',
   'budgetCurrency',
+  'bookingMode',
+  'category',
+  'joinedCount',
+  'entryFee',
+  'entryFeeCurrency',
+  'tripNote',
   'itinerary',
 ]
-
-function assertOrganizerOwnsTrip(user, trip) {
-  if (user.role !== 'organizer') return
-  if (String(trip.organizer._id || trip.organizer) !== String(user._id)) {
-    throw new HttpError('You can only manage your own trips', 403)
-  }
-}
 
 function getTripQueryForUser(user) {
   if (user.role === 'admin') return {}
@@ -56,6 +57,8 @@ function trimStringFields(payload) {
   if (typeof payload.location === 'string') payload.location = payload.location.trim()
   if (typeof payload.image === 'string') payload.image = payload.image.trim()
   if (typeof payload.accessibility === 'string') payload.accessibility = payload.accessibility.trim()
+  if (typeof payload.category === 'string') payload.category = payload.category.trim()
+  if (typeof payload.tripNote === 'string') payload.tripNote = payload.tripNote.trim()
   return payload
 }
 
@@ -92,7 +95,7 @@ const listTrips = asyncHandler(async (req, res) => {
       limit: pagination.limit,
       skip: pagination.skip,
       sort: { createdAt: -1 },
-      populate: (q) => q.populate('organizer', 'name email role organizationType'),
+      populate: (q) => q.populate('organizer', 'name email role organizationType avatar'),
     })
 
     return res.json({
@@ -104,7 +107,7 @@ const listTrips = asyncHandler(async (req, res) => {
   }
 
   const trips = await Trip.find(query)
-    .populate('organizer', 'name email role organizationType')
+    .populate('organizer', 'name email role organizationType avatar')
     .sort({ createdAt: -1 })
 
   res.json({
@@ -132,7 +135,7 @@ const createTrip = asyncHandler(async (req, res) => {
     }
   }
 
-  const populatedTrip = await trip.populate('organizer', 'name email role organizationType')
+  const populatedTrip = await trip.populate('organizer', 'name email role organizationType avatar')
 
   res.status(201).json({
     success: true,
@@ -141,18 +144,65 @@ const createTrip = asyncHandler(async (req, res) => {
 })
 
 const getTrip = asyncHandler(async (req, res) => {
-  const trip = await Trip.findById(req.params.id).populate('organizer', 'name email role organizationType')
-  if (!trip) throw new HttpError('Trip not found', 404)
-
-  if (req.user.role === 'provider' && !['published', 'scheduled', 'in_progress'].includes(trip.status)) {
-    throw new HttpError('Trip not found', 404)
-  }
-
-  assertOrganizerOwnsTrip(req.user, trip)
+  const trip = await Trip.findById(req.params.id).populate(
+    'organizer',
+    'name email role organizationType avatar',
+  )
+  assertCanViewTrip(req.user, trip)
 
   res.json({
     success: true,
     trip,
+  })
+})
+
+const getRecommendedProviders = asyncHandler(async (req, res) => {
+  const trip = await Trip.findById(req.params.id)
+  assertCanViewTrip(req.user, trip)
+
+  const providers = await findRecommendedProvidersForTrip(trip)
+
+  res.json({
+    success: true,
+    count: providers.length,
+    providers,
+  })
+})
+
+const duplicateTrip = asyncHandler(async (req, res) => {
+  const source = await Trip.findById(req.params.id)
+  if (!source) throw new HttpError('Trip not found', 404)
+
+  assertOrganizerOwnsTrip(req.user, source)
+
+  const copy = await Trip.create({
+    title: `${source.title} (copy)`.slice(0, 160),
+    description: source.description,
+    location: source.location,
+    startDate: source.startDate,
+    endDate: source.endDate,
+    participants: source.participants,
+    needTypes: source.needTypes,
+    status: 'draft',
+    organizer: req.user._id,
+    image: source.image,
+    accessibility: source.accessibility,
+    budgetEstimate: source.budgetEstimate,
+    budgetCurrency: source.budgetCurrency,
+    bookingMode: source.bookingMode,
+    category: source.category,
+    joinedCount: 0,
+    entryFee: source.entryFee,
+    entryFeeCurrency: source.entryFeeCurrency,
+    tripNote: source.tripNote,
+    itinerary: source.itinerary,
+  })
+
+  const populatedTrip = await copy.populate('organizer', 'name email role organizationType avatar')
+
+  res.status(201).json({
+    success: true,
+    trip: populatedTrip,
   })
 })
 
@@ -178,9 +228,15 @@ const updateTrip = asyncHandler(async (req, res) => {
     throw new HttpError('endDate cannot be before startDate', 400)
   }
 
+  const effectiveParticipants = updates.participants ?? trip.participants
+  const effectiveJoined = updates.joinedCount ?? trip.joinedCount
+  if (effectiveJoined > effectiveParticipants) {
+    throw new HttpError('joinedCount cannot exceed participants', 400)
+  }
+
   Object.assign(trip, updates)
   await trip.save()
-  await trip.populate('organizer', 'name email role organizationType')
+  await trip.populate('organizer', 'name email role organizationType avatar')
 
   res.json({
     success: true,
@@ -218,7 +274,7 @@ const uploadTripImage = asyncHandler(async (req, res) => {
 
   await applyTripCoverImage(trip, req.file.buffer)
   await trip.save()
-  await trip.populate('organizer', 'name email role organizationType')
+  await trip.populate('organizer', 'name email role organizationType avatar')
 
   res.json({
     success: true,
@@ -226,4 +282,13 @@ const uploadTripImage = asyncHandler(async (req, res) => {
   })
 })
 
-module.exports = { createTrip, deleteTrip, getTrip, listTrips, updateTrip, uploadTripImage }
+module.exports = {
+  createTrip,
+  deleteTrip,
+  duplicateTrip,
+  getRecommendedProviders,
+  getTrip,
+  listTrips,
+  updateTrip,
+  uploadTripImage,
+}

@@ -1,6 +1,7 @@
 const mongoose = require('mongoose')
 
 const OFFER_STATUSES = ['submitted', 'accepted', 'rejected', 'withdrawn']
+const OFFER_TIERS = ['standard', 'recommended']
 
 const offerSchema = new mongoose.Schema(
   {
@@ -41,6 +42,16 @@ const offerSchema = new mongoose.Schema(
       default: 'submitted',
       index: true,
     },
+    tier: {
+      type: String,
+      enum: OFFER_TIERS,
+      default: 'standard',
+    },
+    rejectionReason: {
+      type: String,
+      trim: true,
+      maxlength: 1000,
+    },
   },
   {
     timestamps: true,
@@ -57,4 +68,4 @@ offerSchema.index({ request: 1, provider: 1 }, { unique: true })
 
 const Offer = mongoose.model('Offer', offerSchema)
 
-module.exports = { OFFER_STATUSES, Offer }
+module.exports = { OFFER_STATUSES, OFFER_TIERS, Offer }

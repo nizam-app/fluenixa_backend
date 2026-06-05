@@ -13,6 +13,8 @@ const {
 const {
   createTrip,
   deleteTrip,
+  duplicateTrip,
+  getRecommendedProviders,
   getTrip,
   listTrips,
   updateTrip,
@@ -56,6 +58,20 @@ router
     validate({ params: tripIdParamsSchema }),
     deleteTrip,
   )
+
+router.post(
+  '/:id/duplicate',
+  requireRoles('organizer'),
+  writeLimiter,
+  validate({ params: tripIdParamsSchema }),
+  duplicateTrip,
+)
+
+router.get(
+  '/:id/recommended-providers',
+  validate({ params: tripIdParamsSchema }),
+  getRecommendedProviders,
+)
 
 router.post(
   '/:id/image',

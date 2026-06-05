@@ -1,6 +1,6 @@
 const { z } = require('zod')
 const mongoose = require('mongoose')
-const { NEED_TYPES, TRIP_STATUSES } = require('./trip.model')
+const { NEED_TYPES, TRIP_STATUSES, BOOKING_MODES } = require('./trip.model')
 
 const objectId = z
   .string()
@@ -8,11 +8,37 @@ const objectId = z
 
 const isoDate = z.coerce.date({ error: 'Must be a valid date' })
 
-const itineraryStopSchema = z.object({
+const legacyItineraryStopSchema = z.object({
   label: z.string().trim().min(1).max(120),
   detail: z.string().trim().max(240).optional(),
   type: z.string().trim().max(80).optional(),
 })
+
+const transferLegSchema = z
+  .object({
+    type: z.literal('transfer'),
+    date: z.string().trim().max(32).optional(),
+    time: z.string().trim().max(16).optional(),
+    pickup: z.string().trim().max(180).optional(),
+    destination: z.string().trim().max(180).optional(),
+  })
+  .refine(
+    (value) => Boolean(value.pickup?.length || value.destination?.length),
+    { message: 'Transfer leg requires pickup and/or destination' },
+  )
+
+const stayLegSchema = z.object({
+  type: z.literal('stay'),
+  location: z.string().trim().min(1).max(180),
+  durationDays: z.coerce.number().int().min(1).max(365).optional(),
+  detail: z.string().trim().max(240).optional(),
+})
+
+const itineraryStopSchema = z.union([
+  transferLegSchema,
+  stayLegSchema,
+  legacyItineraryStopSchema,
+])
 
 const baseTripFields = {
   title: z.string().trim().min(1, 'Title is required').max(160),
@@ -33,8 +59,25 @@ const baseTripFields = {
     .length(3, 'Currency must be a 3-letter ISO code')
     .optional()
     .default('EUR'),
+  bookingMode: z.enum(BOOKING_MODES).optional().default('multi_provider'),
+  category: z.string().trim().max(80).optional(),
+  joinedCount: z.coerce.number().int().min(0).max(100_000).optional().default(0),
+  entryFee: z.coerce.number().min(0).max(100_000_000).optional(),
+  entryFeeCurrency: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .length(3, 'Currency must be a 3-letter ISO code')
+    .optional()
+    .default('EUR'),
+  tripNote: z.string().trim().max(240).optional(),
   itinerary: z.array(itineraryStopSchema).optional(),
 }
+
+const capacityRefine = (value) =>
+  value.joinedCount === undefined ||
+  value.participants === undefined ||
+  value.joinedCount <= value.participants
 
 const createTripSchema = z
   .object(baseTripFields)
@@ -42,6 +85,10 @@ const createTripSchema = z
     (value) => !value.endDate || !value.startDate || value.endDate >= value.startDate,
     { path: ['endDate'], message: 'endDate cannot be before startDate' },
   )
+  .refine(capacityRefine, {
+    path: ['joinedCount'],
+    message: 'joinedCount cannot exceed participants',
+  })
 
 const updateTripSchema = z
   .object({
@@ -57,6 +104,12 @@ const updateTripSchema = z
     accessibility: baseTripFields.accessibility,
     budgetEstimate: baseTripFields.budgetEstimate,
     budgetCurrency: baseTripFields.budgetCurrency,
+    bookingMode: baseTripFields.bookingMode,
+    category: baseTripFields.category,
+    joinedCount: baseTripFields.joinedCount,
+    entryFee: baseTripFields.entryFee,
+    entryFeeCurrency: baseTripFields.entryFeeCurrency,
+    tripNote: baseTripFields.tripNote,
     itinerary: baseTripFields.itinerary,
   })
   .refine(
@@ -68,6 +121,10 @@ const updateTripSchema = z
     (value) => !value.endDate || !value.startDate || value.endDate >= value.startDate,
     { path: ['endDate'], message: 'endDate cannot be before startDate' },
   )
+  .refine(capacityRefine, {
+    path: ['joinedCount'],
+    message: 'joinedCount cannot exceed participants',
+  })
 
 const listTripsQuerySchema = z.object({
   status: z.enum(TRIP_STATUSES).optional(),

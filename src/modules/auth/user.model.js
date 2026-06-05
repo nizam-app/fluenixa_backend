@@ -39,10 +39,38 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    contactPerson: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+    },
+    companyDescription: {
+      type: String,
+      trim: true,
+      maxlength: 2000,
+    },
     status: {
       type: String,
       enum: USER_STATUSES,
       default: 'active',
+    },
+    avatar: {
+      type: String,
+      trim: true,
+    },
+    avatarPublicId: {
+      type: String,
+      trim: true,
+    },
+    rating: {
+      type: Number,
+      min: 0,
+      max: 5,
+    },
+    reviewCount: {
+      type: Number,
+      min: 0,
+      default: 0,
     },
   },
   {
