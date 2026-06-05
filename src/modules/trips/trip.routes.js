@@ -18,11 +18,13 @@ const {
   updateTrip,
   uploadTripImage,
 } = require('./trip.controller')
+const { buildParseTripCreateRequest } = require('./tripCreate.middleware')
 
 const env = loadEnv()
 const imageUploader = buildImageUploader({
   maxBytes: env.maxUploadBytes,
 })
+const parseTripCreateRequest = buildParseTripCreateRequest(imageUploader)
 
 const router = express.Router()
 
@@ -34,6 +36,7 @@ router
   .post(
     requireRoles('organizer'),
     writeLimiter,
+    parseTripCreateRequest,
     validate({ body: createTripSchema }),
     createTrip,
   )

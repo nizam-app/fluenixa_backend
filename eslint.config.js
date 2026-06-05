@@ -3,7 +3,7 @@ const globals = require('globals')
 
 module.exports = [
   {
-    ignores: ['node_modules/**', 'uploads/**', 'dist/**', 'coverage/**'],
+    ignores: ['node_modules/**', 'uploads/**', 'dist/**', 'coverage/**', 'scripts/**/*.mjs'],
   },
   js.configs.recommended,
   {

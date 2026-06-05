@@ -145,6 +145,8 @@ All endpoints sit under `/api/v1`. Auth: `Authorization: Bearer <JWT>`.
 | `GET` | `/health` | Liveness probe |
 | `POST` | `/auth/register` | Create an organizer or provider account |
 | `POST` | `/auth/login` | Issue a JWT |
+| `POST` | `/auth/forgot-password` | Request password reset (`resetToken` returned in non-production) |
+| `POST` | `/auth/reset-password` | Complete reset with `{ token, newPassword }` |
 | `POST` | `/auth/bootstrap-admin` | Create the very first admin (once only) |
 | `POST` | `/contact` | Submit a public contact-form message |
 
@@ -187,7 +189,26 @@ All endpoints sit under `/api/v1`. Auth: `Authorization: Bearer <JWT>`.
 | `GET` | `/contact` | Inbox of contact messages |
 | `PATCH` | `/contact/:id/status` | Triage a message |
 
-See `requests.http` for runnable examples.
+### Mobile (native app + shared resources)
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| `GET` | `/mobile/config` | no | App config, need types, account types, feature flags |
+| `GET` | `/mobile/help` | no | FAQ / support copy for Help screens |
+| `GET` | `/mobile/dashboard` | yes | Role-based home summary (stats + recent items) |
+| `GET` | `/notifications` | yes | In-app notification inbox (`read`, `page`, `limit`) |
+| `PATCH` | `/notifications/:id/read` | yes | Mark notification read |
+| `PATCH` | `/notifications/read-all` | yes | Mark all read |
+| `POST` | `/devices/register` | yes | Register push token (`token`, `platform`, `appVersion`) |
+| `POST` | `/devices/unregister` | yes | Remove push token |
+| `GET` | `/devices` | yes | List registered devices |
+
+List endpoints (`/trips`, `/requests`, `/offers`) accept optional `page` and `limit` for mobile scrolling.
+
+Full mobile integration guide: [`docs/MOBILE_API.md`](docs/MOBILE_API.md).  
+Stitch mobile UI: [project 902928306854417353](https://stitch.withgoogle.com/projects/902928306854417353).
+
+See `requests.http` for runnable examples, or import the full **Postman collection** from `postman/` (`npm run postman:generate` to refresh it).
 
 ## Error shape
 
@@ -257,5 +278,6 @@ backend/
         ├── httpError.js
         └── jwt.js
 ```
-#   f l u e n i x a _ b a c k e n d  
+#   f l u e n i x a _ b a c k e n d 
+ 
  

@@ -29,6 +29,8 @@ const listRequestsQuerySchema = z.object({
   status: z.enum(REQUEST_STATUSES).optional(),
   needType: z.enum(NEED_TYPES).optional(),
   trip: objectId.optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
 })
 
 const requestIdParamsSchema = z.object({ id: objectId })

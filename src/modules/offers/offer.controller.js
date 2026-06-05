@@ -1,7 +1,10 @@
 const mongoose = require('mongoose')
 const { ServiceRequest } = require('../requests/serviceRequest.model')
+const { Trip } = require('../trips/trip.model')
+const { notifyUser } = require('../../services/notifications')
 const { asyncHandler } = require('../../utils/asyncHandler')
 const { HttpError } = require('../../utils/httpError')
+const { paginateQuery, parsePagination } = require('../../utils/pagination')
 const { OFFER_STATUSES, Offer } = require('./offer.model')
 
 function populateOffer(query) {
@@ -49,6 +52,25 @@ const listOffers = asyncHandler(async (req, res) => {
   if (status) query.status = status
   if (request) query.request = request
 
+  const pagination = parsePagination(req.query)
+
+  if (pagination.enabled && req.user.role !== 'organizer') {
+    const { items, meta } = await paginateQuery(Offer, query, {
+      page: pagination.page,
+      limit: pagination.limit,
+      skip: pagination.skip,
+      sort: { createdAt: -1 },
+      populate: (q) => populateOffer(q),
+    })
+
+    return res.json({
+      success: true,
+      count: items.length,
+      pagination: meta,
+      offers: items,
+    })
+  }
+
   const offers = await populateOffer(Offer.find(query)).sort({ createdAt: -1 })
   const visibleOffers =
     req.user.role === 'organizer'
@@ -59,10 +81,24 @@ const listOffers = asyncHandler(async (req, res) => {
         )
       : offers
 
+  const slice =
+    pagination.enabled && req.user.role === 'organizer'
+      ? visibleOffers.slice(pagination.skip, pagination.skip + pagination.limit)
+      : visibleOffers
+
   res.json({
     success: true,
-    count: visibleOffers.length,
-    offers: visibleOffers,
+    count: slice.length,
+    ...(pagination.enabled && {
+      pagination: {
+        page: pagination.page,
+        limit: pagination.limit,
+        total: visibleOffers.length,
+        totalPages: Math.ceil(visibleOffers.length / pagination.limit) || 0,
+        hasMore: pagination.skip + slice.length < visibleOffers.length,
+      },
+    }),
+    offers: slice,
   })
 })
 
@@ -118,6 +154,16 @@ const createOffer = asyncHandler(async (req, res) => {
     })
 
     const populatedOffer = await populateOffer(Offer.findById(offer._id))
+    const trip = await Trip.findById(request.trip).select('title')
+
+    await notifyUser(request.organizer, {
+      type: 'offer_received',
+      title: 'New offer received',
+      body: `${req.user.name} submitted an offer${trip ? ` for ${trip.title}` : ''}`,
+      trip: request.trip,
+      request: request._id,
+      offer: offer._id,
+    })
 
     res.status(201).json({
       success: true,
@@ -202,14 +248,45 @@ const updateOfferStatus = asyncHandler(async (req, res) => {
     }
   }
 
-  if (req.body.status === 'accepted') {
+  const newStatus = req.body.status
+
+  if (newStatus === 'accepted') {
     await applyAcceptedOffer(offer)
   } else {
-    offer.status = req.body.status
+    offer.status = newStatus
     await offer.save()
   }
 
   const populatedOffer = await populateOffer(Offer.findById(offer._id))
+
+  if (newStatus === 'accepted') {
+    await notifyUser(offer.provider, {
+      type: 'offer_accepted',
+      title: 'Offer accepted',
+      body: 'Your offer was accepted by the organizer',
+      trip: offer.request.trip,
+      request: offer.request._id,
+      offer: offer._id,
+    })
+  } else if (newStatus === 'rejected') {
+    await notifyUser(offer.provider, {
+      type: 'offer_rejected',
+      title: 'Offer declined',
+      body: 'Your offer was not selected for this request',
+      trip: offer.request.trip,
+      request: offer.request._id,
+      offer: offer._id,
+    })
+  } else if (newStatus === 'withdrawn') {
+    await notifyUser(offer.request.organizer, {
+      type: 'offer_withdrawn',
+      title: 'Offer withdrawn',
+      body: 'A provider withdrew their offer',
+      trip: offer.request.trip,
+      request: offer.request._id,
+      offer: offer._id,
+    })
+  }
 
   res.json({
     success: true,

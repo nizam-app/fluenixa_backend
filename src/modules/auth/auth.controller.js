@@ -1,8 +1,20 @@
+const crypto = require('crypto')
 const { loadEnv } = require('../../config/env')
 const { asyncHandler } = require('../../utils/asyncHandler')
 const { HttpError } = require('../../utils/httpError')
 const { signAuthToken } = require('../../utils/jwt')
+const { PasswordReset } = require('./passwordReset.model')
 const { User } = require('./user.model')
+
+const RESET_TTL_MS = 60 * 60 * 1000
+
+function hashResetToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex')
+}
+
+function createResetToken() {
+  return crypto.randomBytes(32).toString('hex')
+}
 
 function buildAuthResponse(user) {
   return {
@@ -120,4 +132,70 @@ function logout(req, res) {
   })
 }
 
-module.exports = { bootstrapAdmin, getMe, login, logout, register }
+const forgotPassword = asyncHandler(async (req, res) => {
+  const env = loadEnv()
+  const user = await User.findOne({ email: req.body.email })
+
+  const payload = {
+    success: true,
+    message:
+      'If an account exists for this email, password reset instructions have been sent.',
+  }
+
+  if (user && user.status === 'active') {
+    const token = createResetToken()
+    await PasswordReset.deleteMany({ user: user._id, usedAt: null })
+    await PasswordReset.create({
+      user: user._id,
+      tokenHash: hashResetToken(token),
+      expiresAt: new Date(Date.now() + RESET_TTL_MS),
+    })
+
+    if (!env.isProduction) {
+      payload.resetToken = token
+      payload.expiresIn = '1h'
+      payload.note = 'resetToken is only returned in non-production environments (no email service yet)'
+    }
+  }
+
+  res.json(payload)
+})
+
+const resetPassword = asyncHandler(async (req, res) => {
+  const record = await PasswordReset.findOne({
+    tokenHash: hashResetToken(req.body.token),
+    usedAt: null,
+    expiresAt: { $gt: new Date() },
+  })
+
+  if (!record) {
+    throw new HttpError('Invalid or expired reset token', 400)
+  }
+
+  const user = await User.findById(record.user)
+  if (!user || user.status !== 'active') {
+    throw new HttpError('Invalid or expired reset token', 400)
+  }
+
+  user.passwordHash = req.body.newPassword
+  await user.save()
+
+  record.usedAt = new Date()
+  await record.save()
+  await PasswordReset.deleteMany({ user: user._id })
+
+  res.json({
+    success: true,
+    message: 'Password has been reset. You can log in with your new password.',
+  })
+})
+
+module.exports = {
+  bootstrapAdmin,
+  forgotPassword,
+  getMe,
+  login,
+  logout,
+  register,
+  resetPassword,
+}

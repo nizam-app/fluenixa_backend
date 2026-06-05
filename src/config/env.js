@@ -39,6 +39,8 @@ function loadEnv() {
     mongoUri: process.env.MONGODB_URI,
     jwtSecret,
     jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+    // Comma-separated. Include mobile dev origins when testing native apps, e.g.
+    // http://localhost:5173,capacitor://localhost,http://localhost:8081
     clientOrigin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
     adminBootstrapKey: process.env.ADMIN_BOOTSTRAP_KEY || '',
     uploadDir: process.env.UPLOAD_DIR || 'uploads',

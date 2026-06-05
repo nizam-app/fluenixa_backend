@@ -89,7 +89,7 @@ GET {{base}}/trips
 Authorization: Bearer {{organizerToken}}
 
 ###
-# Trips — create
+# Trips — create (JSON, no image)
 POST {{base}}/trips
 Authorization: Bearer {{organizerToken}}
 Content-Type: application/json
@@ -102,11 +102,55 @@ Content-Type: application/json
   "endDate": "2026-05-14",
   "participants": 40,
   "needTypes": ["Transport", "Hotel", "Activity"],
-  "status": "published"
+  "status": "published",
+  "budgetEstimate": 2500,
+  "budgetCurrency": "EUR"
 }
 
 ###
-# Trips — upload image (replace :id and provide a local file)
+# Trips — create with cover image (multipart; needTypes as JSON string)
+# In VS Code REST Client: use form fields + @trip.jpg for the image file
+POST {{base}}/trips
+Authorization: Bearer {{organizerToken}}
+Content-Type: multipart/form-data; boundary=----RequestsBoundary
+
+------RequestsBoundary
+Content-Disposition: form-data; name="title"
+
+Spring school field trip
+------RequestsBoundary
+Content-Disposition: form-data; name="description"
+
+A 3-day trip to the coast for 40 students
+------RequestsBoundary
+Content-Disposition: form-data; name="location"
+
+Marseille, France
+------RequestsBoundary
+Content-Disposition: form-data; name="startDate"
+
+2026-05-12
+------RequestsBoundary
+Content-Disposition: form-data; name="participants"
+
+40
+------RequestsBoundary
+Content-Disposition: form-data; name="needTypes"
+
+["Transport","Hotel","Activity"]
+------RequestsBoundary
+Content-Disposition: form-data; name="status"
+
+published
+------RequestsBoundary
+Content-Disposition: form-data; name="image"; filename="trip.jpg"
+Content-Type: image/jpeg
+
+< ./trip.jpg
+------RequestsBoundary--
+
+###
+# Trips — upload image on existing trip (replace :id)
 POST {{base}}/trips/REPLACE_TRIP_ID/image
 Authorization: Bearer {{organizerToken}}
 Content-Type: multipart/form-data; boundary=----RequestsBoundary

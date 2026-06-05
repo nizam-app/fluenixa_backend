@@ -1,7 +1,7 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "Express and MongoDB API for the Flunexia web app",
+  "description": "Express and MongoDB API for the Flunexia web and mobile apps",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
@@ -9,7 +9,10 @@
     "check": "node --check src/server.js",
     "lint": "eslint .",
     "gen-secret": "node scripts/gen-secret.js",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "postman:generate": "node scripts/generate-postman.js",
+    "stitch:mobile": "node scripts/fetch-stitch-screens.mjs 902928306854417353",
+    "stitch:app": "node scripts/fetch-stitch-screens.mjs 9971131479177624563"
   },
   "keywords": [],
   "author": "",
@@ -34,6 +37,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@google/stitch-sdk": "^0.3.5",
     "eslint": "^10.3.0",
     "globals": "^17.6.0",
     "nodemon": "^3.1.14"

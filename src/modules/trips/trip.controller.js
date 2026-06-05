@@ -1,5 +1,6 @@
 const { asyncHandler } = require('../../utils/asyncHandler')
 const { HttpError } = require('../../utils/httpError')
+const { paginateQuery, parsePagination } = require('../../utils/pagination')
 const { NEED_TYPES, TRIP_STATUSES, Trip } = require('./trip.model')
 const cloudinary = require('../../services/cloudinary')
 
@@ -14,6 +15,8 @@ const ALLOWED_UPDATE_FIELDS = [
   'status',
   'image',
   'accessibility',
+  'budgetEstimate',
+  'budgetCurrency',
   'itinerary',
 ]
 
@@ -56,9 +59,49 @@ function trimStringFields(payload) {
   return payload
 }
 
+async function applyTripCoverImage(trip, buffer) {
+  if (!cloudinary.isConfigured()) {
+    throw new HttpError(
+      'Image upload is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET on the server.',
+      503,
+    )
+  }
+
+  const previousPublicId = trip.imagePublicId
+  const result = await cloudinary.uploadBuffer(buffer, {
+    folder: 'flunexia/trips',
+    publicId: `trip-${trip._id}`,
+  })
+
+  trip.image = result.secure_url
+  trip.imagePublicId = result.public_id
+
+  if (previousPublicId && previousPublicId !== result.public_id) {
+    cloudinary.destroy(previousPublicId).catch(() => {})
+  }
+}
+
 const listTrips = asyncHandler(async (req, res) => {
   const baseQuery = getTripQueryForUser(req.user)
   const query = buildTripFilters(req.query, baseQuery)
+  const pagination = parsePagination(req.query)
+
+  if (pagination.enabled) {
+    const { items, meta } = await paginateQuery(Trip, query, {
+      page: pagination.page,
+      limit: pagination.limit,
+      skip: pagination.skip,
+      sort: { createdAt: -1 },
+      populate: (q) => q.populate('organizer', 'name email role organizationType'),
+    })
+
+    return res.json({
+      success: true,
+      count: items.length,
+      pagination: meta,
+      trips: items,
+    })
+  }
 
   const trips = await Trip.find(query)
     .populate('organizer', 'name email role organizationType')
@@ -78,6 +121,16 @@ const createTrip = asyncHandler(async (req, res) => {
     ...payload,
     organizer: req.user._id,
   })
+
+  if (req.file) {
+    try {
+      await applyTripCoverImage(trip, req.file.buffer)
+      await trip.save()
+    } catch (err) {
+      await trip.deleteOne()
+      throw err
+    }
+  }
 
   const populatedTrip = await trip.populate('organizer', 'name email role organizationType')
 
@@ -158,35 +211,14 @@ const uploadTripImage = asyncHandler(async (req, res) => {
     throw new HttpError('Image file is required (multipart field "image")', 400)
   }
 
-  if (!cloudinary.isConfigured()) {
-    throw new HttpError(
-      'Image upload is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET on the server.',
-      503,
-    )
-  }
-
   const trip = await Trip.findById(req.params.id)
   if (!trip) throw new HttpError('Trip not found', 404)
 
   assertOrganizerOwnsTrip(req.user, trip)
 
-  const previousPublicId = trip.imagePublicId
-
-  const result = await cloudinary.uploadBuffer(req.file.buffer, {
-    folder: 'flunexia/trips',
-    publicId: `trip-${trip._id}`,
-  })
-
-  trip.image = result.secure_url
-  trip.imagePublicId = result.public_id
+  await applyTripCoverImage(trip, req.file.buffer)
   await trip.save()
   await trip.populate('organizer', 'name email role organizationType')
-
-  // Best-effort: clean up any previous Cloudinary asset that lived under a
-  // different public_id (e.g. legacy /uploads/* paths have no publicId set).
-  if (previousPublicId && previousPublicId !== result.public_id) {
-    cloudinary.destroy(previousPublicId).catch(() => {})
-  }
 
   res.json({
     success: true,

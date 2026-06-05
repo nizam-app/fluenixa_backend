@@ -1,7 +1,9 @@
 const { User } = require('../auth/user.model')
 const { Trip } = require('../trips/trip.model')
+const { notifyUser } = require('../../services/notifications')
 const { asyncHandler } = require('../../utils/asyncHandler')
 const { HttpError } = require('../../utils/httpError')
+const { paginateQuery, parsePagination } = require('../../utils/pagination')
 const { REQUEST_STATUSES, ServiceRequest } = require('./serviceRequest.model')
 
 function assertOrganizerOwnsRequest(user, request) {
@@ -54,6 +56,25 @@ const listRequests = asyncHandler(async (req, res) => {
   if (needType) query.needType = needType
   if (trip) query.trip = trip
 
+  const pagination = parsePagination(req.query)
+
+  if (pagination.enabled) {
+    const { items, meta } = await paginateQuery(ServiceRequest, query, {
+      page: pagination.page,
+      limit: pagination.limit,
+      skip: pagination.skip,
+      sort: { createdAt: -1 },
+      populate: (q) => populateRequest(q),
+    })
+
+    return res.json({
+      success: true,
+      count: items.length,
+      pagination: meta,
+      requests: items,
+    })
+  }
+
   const requests = await populateRequest(ServiceRequest.find(query)).sort({ createdAt: -1 })
 
   res.json({
@@ -90,6 +111,16 @@ const createRequest = asyncHandler(async (req, res) => {
 
   const populatedRequest = await populateRequest(ServiceRequest.findById(request._id))
 
+  if (provider) {
+    await notifyUser(provider, {
+      type: 'request_created',
+      title: 'New service request',
+      body: `${req.body.needType} request on ${trip.title}`,
+      trip: trip._id,
+      request: request._id,
+    })
+  }
+
   res.status(201).json({
     success: true,
     request: populatedRequest,
@@ -124,10 +155,21 @@ const updateRequestStatus = asyncHandler(async (req, res) => {
     }
   }
 
+  const previousStatus = request.status
   request.status = req.body.status
   await request.save()
 
   const populatedRequest = await populateRequest(ServiceRequest.findById(request._id))
+
+  if (req.body.status === 'completed' && previousStatus !== 'completed') {
+    await notifyUser(request.organizer, {
+      type: 'request_status',
+      title: 'Request completed',
+      body: `${request.needType} request marked completed`,
+      trip: request.trip,
+      request: request._id,
+    })
+  }
 
   res.json({
     success: true,

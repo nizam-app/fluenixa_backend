@@ -25,6 +25,14 @@ const baseTripFields = {
   status: z.enum(TRIP_STATUSES).optional(),
   image: z.string().trim().max(2048).optional(),
   accessibility: z.string().trim().max(120).optional(),
+  budgetEstimate: z.coerce.number().min(0).max(100_000_000).optional(),
+  budgetCurrency: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .length(3, 'Currency must be a 3-letter ISO code')
+    .optional()
+    .default('EUR'),
   itinerary: z.array(itineraryStopSchema).optional(),
 }
 
@@ -47,6 +55,8 @@ const updateTripSchema = z
     status: baseTripFields.status,
     image: baseTripFields.image,
     accessibility: baseTripFields.accessibility,
+    budgetEstimate: baseTripFields.budgetEstimate,
+    budgetCurrency: baseTripFields.budgetCurrency,
     itinerary: baseTripFields.itinerary,
   })
   .refine(
@@ -63,6 +73,8 @@ const listTripsQuerySchema = z.object({
   status: z.enum(TRIP_STATUSES).optional(),
   needType: z.enum(NEED_TYPES).optional(),
   q: z.string().trim().min(1).optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
 })
 
 const tripIdParamsSchema = z.object({ id: objectId })

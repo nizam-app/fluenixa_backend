@@ -7,7 +7,17 @@ function validate(schemas) {
   return function validateMiddleware(req, res, next) {
     try {
       for (const target of targets) {
-        const parsed = schemas[target].parse(req[target])
+        const value = req[target]
+        if (target === 'body' && value === undefined) {
+          const contentType = req.headers['content-type'] || ''
+          if (contentType.includes('multipart/form-data')) {
+            throw new HttpError(
+              'Could not read multipart body. Ensure the API server supports multipart on this route, or send JSON without a file.',
+              400,
+            )
+          }
+        }
+        const parsed = schemas[target].parse(value)
         req[target] = parsed
       }
       next()

@@ -8,10 +8,14 @@ const { loadEnv } = require('./config/env')
 const adminRoutes = require('./modules/admin/admin.routes')
 const authRoutes = require('./modules/auth/auth.routes')
 const contactRoutes = require('./modules/contact/contact.routes')
+const deviceRoutes = require('./modules/devices/device.routes')
+const mobileRoutes = require('./modules/mobile/mobile.routes')
+const notificationRoutes = require('./modules/notifications/notification.routes')
 const offerRoutes = require('./modules/offers/offer.routes')
 const requestRoutes = require('./modules/requests/request.routes')
 const tripRoutes = require('./modules/trips/trip.routes')
 const userRoutes = require('./modules/users/user.routes')
+const { clientPlatform } = require('./middleware/clientPlatform')
 const { errorHandler, notFound } = require('./middleware/error.middleware')
 
 function createApp() {
@@ -43,6 +47,7 @@ function createApp() {
 
   app.use(express.json({ limit: '1mb' }))
   app.use(express.urlencoded({ extended: true, limit: '1mb' }))
+  app.use(clientPlatform)
 
   app.use('/uploads', express.static(path.resolve(env.uploadDir)))
 
@@ -52,6 +57,7 @@ function createApp() {
       service: 'flunexia-api',
       status: 'ok',
       environment: env.nodeEnv,
+      clients: ['web', 'ios', 'android'],
       timestamp: new Date().toISOString(),
     })
   })
@@ -63,6 +69,9 @@ function createApp() {
   app.use('/api/v1/offers', offerRoutes)
   app.use('/api/v1/admin', adminRoutes)
   app.use('/api/v1/contact', contactRoutes)
+  app.use('/api/v1/mobile', mobileRoutes)
+  app.use('/api/v1/notifications', notificationRoutes)
+  app.use('/api/v1/devices', deviceRoutes)
 
   app.use(notFound)
   app.use(errorHandler)

@@ -88,6 +88,17 @@ const tripSchema = new mongoose.Schema(
       trim: true,
       maxlength: 120,
     },
+    budgetEstimate: {
+      type: Number,
+      min: 0,
+    },
+    budgetCurrency: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      maxlength: 3,
+      default: 'EUR',
+    },
     itinerary: {
       type: [itineraryStopSchema],
       default: [],

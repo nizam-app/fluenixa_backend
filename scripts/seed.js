@@ -94,6 +94,8 @@ const TRIPS = [
     status: 'published',
     image: 'https://images.unsplash.com/photo-1564399579883-451a5d44ec08?w=600&q=80',
     accessibility: 'High',
+    budgetEstimate: 2500,
+    budgetCurrency: 'EUR',
     itinerary: [
       { label: 'Pickup Point', detail: 'School Main Gate', type: 'pickup' },
       { label: 'Destination', detail: 'National History Museum', type: 'destination' },
