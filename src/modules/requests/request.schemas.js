@@ -21,6 +21,20 @@ const createRequestSchema = z
     message: 'Trip id is required',
   })
 
+const updateRequestSchema = z
+  .object({
+    message: z.string().trim().max(3000).optional(),
+    needType: z.enum(NEED_TYPES).optional(),
+    provider: objectId.nullable().optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: 'At least one field must be provided',
+  })
+
+const addRequestMessageSchema = z.object({
+  body: z.string().trim().min(1, 'Message is required').max(3000),
+})
+
 const updateRequestStatusSchema = z.object({
   status: z.enum(REQUEST_STATUSES),
 })
@@ -37,9 +51,11 @@ const requestIdParamsSchema = z.object({ id: objectId })
 const requestNestedParamsSchema = z.object({ requestId: objectId })
 
 module.exports = {
+  addRequestMessageSchema,
   createRequestSchema,
   listRequestsQuerySchema,
   requestIdParamsSchema,
   requestNestedParamsSchema,
+  updateRequestSchema,
   updateRequestStatusSchema,
 }

@@ -2,10 +2,13 @@ const mongoose = require('mongoose')
 
 const NOTIFICATION_TYPES = [
   'offer_received',
+  'offer_updated',
   'offer_accepted',
   'offer_rejected',
   'offer_withdrawn',
   'request_created',
+  'request_modified',
+  'request_message',
   'request_status',
   'trip_updated',
   'system',

@@ -58,6 +58,12 @@ async function ensureUser(adminToken, payload) {
       ...(reviewCount !== undefined ? { reviewCount } : {}),
       ...(contactPerson !== undefined ? { contactPerson } : {}),
       ...(companyDescription !== undefined ? { companyDescription } : {}),
+      ...(payload.companyName !== undefined ? { companyName: payload.companyName } : {}),
+      ...(payload.siret !== undefined ? { siret: payload.siret } : {}),
+      ...(payload.iban !== undefined ? { iban: payload.iban } : {}),
+      ...(payload.bic !== undefined ? { bic: payload.bic } : {}),
+      ...(payload.billingAddress !== undefined ? { billingAddress: payload.billingAddress } : {}),
+      ...(payload.billing !== undefined ? { billing: payload.billing } : {}),
     }
     if (Object.keys(profilePatch).length > 0) {
       await http('PATCH', `/admin/users/${user._id}`, {
@@ -78,6 +84,12 @@ async function ensureUser(adminToken, payload) {
       ...(reviewCount !== undefined ? { reviewCount } : {}),
       ...(contactPerson !== undefined ? { contactPerson } : {}),
       ...(companyDescription !== undefined ? { companyDescription } : {}),
+      ...(payload.companyName !== undefined ? { companyName: payload.companyName } : {}),
+      ...(payload.siret !== undefined ? { siret: payload.siret } : {}),
+      ...(payload.iban !== undefined ? { iban: payload.iban } : {}),
+      ...(payload.bic !== undefined ? { bic: payload.bic } : {}),
+      ...(payload.billingAddress !== undefined ? { billingAddress: payload.billingAddress } : {}),
+      ...(payload.billing !== undefined ? { billing: payload.billing } : {}),
     }
     if (existing && Object.keys(profilePatch).length > 0) {
       await http('PATCH', `/admin/users/${existing._id}`, {
@@ -119,6 +131,21 @@ const PROVIDERS = [
     providerType: 'Transport',
     contactPerson: 'Claire Dubois',
     companyDescription: 'Eco-certified coach fleet with drivers across Île-de-France.',
+    companyName: 'GreenBus SAS',
+    siret: '12345678901234',
+    iban: 'FR7630006000011234567890189',
+    bic: 'BNPAFRPP',
+    billingAddress: {
+      line1: '12 Avenue de la République',
+      city: 'Paris',
+      postalCode: '75011',
+      country: 'France',
+    },
+    billing: {
+      chorusProReady: true,
+      chorusServiceCode: 'TRANSPORT-GROUP',
+      paymentTerms: 'Net 30',
+    },
   },
   {
     email: 'orders@citycatering.fr',

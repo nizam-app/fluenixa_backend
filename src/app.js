@@ -15,6 +15,8 @@ const offerRoutes = require('./modules/offers/offer.routes')
 const requestRoutes = require('./modules/requests/request.routes')
 const tripRoutes = require('./modules/trips/trip.routes')
 const userRoutes = require('./modules/users/user.routes')
+const favoriteRoutes = require('./modules/favorites/favorite.routes')
+const utilsRoutes = require('./modules/utils/utils.routes')
 const { clientPlatform } = require('./middleware/clientPlatform')
 const { errorHandler, notFound } = require('./middleware/error.middleware')
 
@@ -52,18 +54,26 @@ function createApp() {
   app.use('/uploads', express.static(path.resolve(env.uploadDir)))
 
   app.get('/api/v1/health', (req, res) => {
+    const { isConfigured: emailConfigured } = require('./services/email')
     res.json({
       success: true,
       service: 'flunexia-api',
       status: 'ok',
       environment: env.nodeEnv,
       clients: ['web', 'ios', 'android'],
+      integrations: {
+        email: emailConfigured(),
+        cloudinary: Boolean(env.cloudinary.cloudName || process.env.CLOUDINARY_URL),
+        googlePlaces: Boolean(process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY),
+      },
       timestamp: new Date().toISOString(),
     })
   })
 
   app.use('/api/v1/auth', authRoutes)
   app.use('/api/v1/users', userRoutes)
+  app.use('/api/v1/utils', utilsRoutes)
+  app.use('/api/v1/favorites', favoriteRoutes)
   app.use('/api/v1/trips', tripRoutes)
   app.use('/api/v1/requests', requestRoutes)
   app.use('/api/v1/offers', offerRoutes)

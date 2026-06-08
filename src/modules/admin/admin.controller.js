@@ -4,6 +4,10 @@ const { ServiceRequest } = require('../requests/serviceRequest.model')
 const { TRIP_STATUSES, Trip } = require('../trips/trip.model')
 const { asyncHandler } = require('../../utils/asyncHandler')
 const { HttpError } = require('../../utils/httpError')
+const {
+  attachOfferCounts,
+  enrichRequestWithDisplayStatus,
+} = require('../../utils/requestDisplayStatus')
 
 function buildTextFilter(q, fields) {
   if (!q) return {}
@@ -190,11 +194,12 @@ const listRequests = asyncHandler(async (req, res) => {
   if (trip) query.trip = trip
 
   const requests = await populateRequest(ServiceRequest.find(query)).sort({ createdAt: -1 })
+  const offerCountsMap = await attachOfferCounts(requests, Offer)
 
   res.json({
     success: true,
     count: requests.length,
-    requests,
+    requests: requests.map((request) => enrichRequestWithDisplayStatus(request, offerCountsMap)),
   })
 })
 

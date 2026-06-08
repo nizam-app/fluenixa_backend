@@ -49,6 +49,40 @@ const userSchema = new mongoose.Schema(
       trim: true,
       maxlength: 2000,
     },
+    companyName: {
+      type: String,
+      trim: true,
+      maxlength: 200,
+    },
+    siret: {
+      type: String,
+      trim: true,
+      maxlength: 14,
+    },
+    iban: {
+      type: String,
+      trim: true,
+      maxlength: 34,
+    },
+    bic: {
+      type: String,
+      trim: true,
+      maxlength: 11,
+    },
+    billingAddress: {
+      line1: { type: String, trim: true, maxlength: 200 },
+      line2: { type: String, trim: true, maxlength: 200 },
+      city: { type: String, trim: true, maxlength: 120 },
+      postalCode: { type: String, trim: true, maxlength: 20 },
+      country: { type: String, trim: true, maxlength: 80, default: 'France' },
+    },
+    billing: {
+      chorusProReady: { type: Boolean, default: false },
+      chorusServiceCode: { type: String, trim: true, maxlength: 100 },
+      legalEntityId: { type: String, trim: true, maxlength: 100 },
+      paymentTerms: { type: String, trim: true, maxlength: 200 },
+      notes: { type: String, trim: true, maxlength: 1000 },
+    },
     status: {
       type: String,
       enum: USER_STATUSES,

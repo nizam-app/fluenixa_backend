@@ -8,16 +8,22 @@ const {
 } = require('../offers/offer.controller')
 const { createOfferSchema } = require('../offers/offer.schemas')
 const {
+  addRequestMessage,
   createRequest,
+  deleteRequest,
   getRequest,
+  getRequestHistory,
   listRequests,
+  updateRequest,
   updateRequestStatus,
 } = require('./request.controller')
 const {
+  addRequestMessageSchema,
   createRequestSchema,
   listRequestsQuerySchema,
   requestIdParamsSchema,
   requestNestedParamsSchema,
+  updateRequestSchema,
   updateRequestStatusSchema,
 } = require('./request.schemas')
 
@@ -36,6 +42,31 @@ router
   )
 
 router.get('/:id', validate({ params: requestIdParamsSchema }), getRequest)
+router.get('/:id/history', validate({ params: requestIdParamsSchema }), getRequestHistory)
+
+router.patch(
+  '/:id',
+  requireRoles('organizer', 'admin'),
+  writeLimiter,
+  validate({ params: requestIdParamsSchema, body: updateRequestSchema }),
+  updateRequest,
+)
+
+router.post(
+  '/:id/messages',
+  requireRoles('organizer', 'provider', 'admin'),
+  writeLimiter,
+  validate({ params: requestIdParamsSchema, body: addRequestMessageSchema }),
+  addRequestMessage,
+)
+
+router.delete(
+  '/:id',
+  requireRoles('organizer', 'admin'),
+  writeLimiter,
+  validate({ params: requestIdParamsSchema }),
+  deleteRequest,
+)
 
 router.patch(
   '/:id/status',

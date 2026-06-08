@@ -1,6 +1,7 @@
 const mongoose = require('mongoose')
 const { ServiceRequest } = require('../requests/serviceRequest.model')
 const { Trip } = require('../trips/trip.model')
+const { recordAudit } = require('../../services/audit')
 const { notifyUser } = require('../../services/notifications')
 const { asyncHandler } = require('../../utils/asyncHandler')
 const { HttpError } = require('../../utils/httpError')
@@ -180,6 +181,17 @@ const createOffer = asyncHandler(async (req, res) => {
       offer: offer._id,
     })
 
+    await recordAudit({
+      entityType: 'offer',
+      entityId: offer._id,
+      action: 'created',
+      summary: 'Offer submitted',
+      actor: req.user._id,
+      actorRole: req.user.role,
+      request: request._id,
+      trip: request.trip,
+    })
+
     res.status(201).json({
       success: true,
       offer: populatedOffer,
@@ -195,17 +207,26 @@ const createOffer = asyncHandler(async (req, res) => {
 async function applyAcceptedOffer(offer) {
   const requestId = offer.request._id || offer.request
   const session = await mongoose.startSession()
+  let autoRejectedOffers = []
 
   try {
     await session.withTransaction(async () => {
       offer.status = 'accepted'
       await offer.save({ session })
 
-      await Offer.updateMany(
+      const rejectResult = await Offer.updateMany(
         { request: requestId, _id: { $ne: offer._id }, status: 'submitted' },
         { $set: { status: 'rejected', rejectionReason: AUTO_REJECT_REASON } },
         { session },
       )
+
+      if (rejectResult.modifiedCount) {
+        autoRejectedOffers = await Offer.find(
+          { request: requestId, status: 'rejected', rejectionReason: AUTO_REJECT_REASON },
+          null,
+          { session },
+        )
+      }
 
       await ServiceRequest.findByIdAndUpdate(
         requestId,
@@ -219,13 +240,18 @@ async function applyAcceptedOffer(offer) {
     })
   } catch (error) {
     if (error?.codeName === 'IllegalOperation' || /Transaction/i.test(error?.message || '')) {
-      // Fallback for standalone (non-replica-set) MongoDB: best-effort sequential writes.
       offer.status = 'accepted'
       await offer.save()
       await Offer.updateMany(
         { request: requestId, _id: { $ne: offer._id }, status: 'submitted' },
         { $set: { status: 'rejected', rejectionReason: AUTO_REJECT_REASON } },
       )
+      autoRejectedOffers = await Offer.find({
+        request: requestId,
+        status: 'rejected',
+        rejectionReason: AUTO_REJECT_REASON,
+        _id: { $ne: offer._id },
+      })
       await ServiceRequest.findByIdAndUpdate(requestId, {
         status: 'accepted',
         provider: offer.provider,
@@ -237,6 +263,8 @@ async function applyAcceptedOffer(offer) {
   } finally {
     session.endSession()
   }
+
+  return autoRejectedOffers
 }
 
 const updateOfferStatus = asyncHandler(async (req, res) => {
@@ -269,8 +297,10 @@ const updateOfferStatus = asyncHandler(async (req, res) => {
     offer.tier = req.body.tier
   }
 
+  let autoRejectedOffers = []
+
   if (newStatus === 'accepted') {
-    await applyAcceptedOffer(offer)
+    autoRejectedOffers = await applyAcceptedOffer(offer)
   } else if (newStatus) {
     if (newStatus === 'rejected' && req.user.role === 'organizer' && req.body.rejectionReason) {
       offer.rejectionReason = req.body.rejectionReason.trim()
@@ -284,6 +314,17 @@ const updateOfferStatus = asyncHandler(async (req, res) => {
   const populatedOffer = await populateOffer(Offer.findById(offer._id))
 
   if (newStatus === 'accepted') {
+    await recordAudit({
+      entityType: 'offer',
+      entityId: offer._id,
+      action: 'offer_accepted',
+      summary: 'Offer accepted',
+      actor: req.user._id,
+      actorRole: req.user.role,
+      request: offer.request._id,
+      trip: offer.request.trip,
+    })
+
     await notifyUser(offer.provider, {
       type: 'offer_accepted',
       title: 'Offer accepted',
@@ -292,7 +333,38 @@ const updateOfferStatus = asyncHandler(async (req, res) => {
       request: offer.request._id,
       offer: offer._id,
     })
+
+    for (const rejected of autoRejectedOffers) {
+      await recordAudit({
+        entityType: 'offer',
+        entityId: rejected._id,
+        action: 'offer_rejected',
+        summary: AUTO_REJECT_REASON,
+        actor: req.user._id,
+        actorRole: req.user.role,
+        request: offer.request._id,
+        trip: offer.request.trip,
+      })
+      await notifyUser(rejected.provider, {
+        type: 'offer_rejected',
+        title: 'Offer declined',
+        body: AUTO_REJECT_REASON,
+        trip: offer.request.trip,
+        request: offer.request._id,
+        offer: rejected._id,
+      })
+    }
   } else if (newStatus === 'rejected') {
+    await recordAudit({
+      entityType: 'offer',
+      entityId: offer._id,
+      action: 'offer_rejected',
+      summary: 'Offer rejected by organizer',
+      actor: req.user._id,
+      actorRole: req.user.role,
+      request: offer.request._id,
+      trip: offer.request.trip,
+    })
     const populatedForNotify = populatedOffer || (await populateOffer(Offer.findById(offer._id)))
     const feedback =
       populatedForNotify?.rejectionReason ||
@@ -355,6 +427,27 @@ const updateOffer = asyncHandler(async (req, res) => {
   await offer.save()
 
   const populatedOffer = await populateOffer(Offer.findById(offer._id))
+  const trip = await Trip.findById(request.trip).select('title')
+
+  await notifyUser(request.organizer, {
+    type: 'offer_updated',
+    title: 'Offer updated',
+    body: `${req.user.name} updated their offer${trip ? ` for ${trip.title}` : ''}`,
+    trip: request.trip,
+    request: request._id,
+    offer: offer._id,
+  })
+
+  await recordAudit({
+    entityType: 'offer',
+    entityId: offer._id,
+    action: 'updated',
+    summary: 'Offer updated by provider',
+    actor: req.user._id,
+    actorRole: req.user.role,
+    request: request._id,
+    trip: request.trip,
+  })
 
   res.json({
     success: true,

@@ -33,6 +33,25 @@ const serviceRequestSchema = new mongoose.Schema(
       trim: true,
       maxlength: 3000,
     },
+    messages: [
+      {
+        author: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+          required: true,
+        },
+        body: {
+          type: String,
+          trim: true,
+          maxlength: 3000,
+          required: true,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
     status: {
       type: String,
       enum: REQUEST_STATUSES,

@@ -5,6 +5,8 @@ const { NEED_TYPES, TRIP_STATUSES, Trip } = require('./trip.model')
 const { findRecommendedProvidersForTrip } = require('./tripRecommendations')
 const { assertCanViewTrip, assertOrganizerOwnsTrip } = require('./tripVisibility')
 const cloudinary = require('../../services/cloudinary')
+const { applyDestinationCoverToTrip } = require('../../services/tripDestinationCover')
+const { enrichTrip, enrichTrips } = require('../../utils/tripSerialization')
 
 const ALLOWED_UPDATE_FIELDS = [
   'title',
@@ -102,7 +104,7 @@ const listTrips = asyncHandler(async (req, res) => {
       success: true,
       count: items.length,
       pagination: meta,
-      trips: items,
+      trips: enrichTrips(items),
     })
   }
 
@@ -113,12 +115,16 @@ const listTrips = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     count: trips.length,
-    trips,
+    trips: enrichTrips(trips),
   })
 })
 
 const createTrip = asyncHandler(async (req, res) => {
   const payload = trimStringFields({ ...req.body })
+
+  if (!req.file && payload.image) {
+    delete payload.image
+  }
 
   const trip = await Trip.create({
     ...payload,
@@ -133,13 +139,19 @@ const createTrip = asyncHandler(async (req, res) => {
       await trip.deleteOne()
       throw err
     }
+  } else if (trip.location?.trim()) {
+    try {
+      await applyDestinationCoverToTrip(trip)
+    } catch (err) {
+      console.warn('[trips] destination cover on create failed:', err?.message || err)
+    }
   }
 
   const populatedTrip = await trip.populate('organizer', 'name email role organizationType avatar')
 
   res.status(201).json({
     success: true,
-    trip: populatedTrip,
+    trip: enrichTrip(populatedTrip),
   })
 })
 
@@ -150,9 +162,17 @@ const getTrip = asyncHandler(async (req, res) => {
   )
   assertCanViewTrip(req.user, trip)
 
+  if (!trip.image && trip.location?.trim()) {
+    try {
+      await applyDestinationCoverToTrip(trip)
+    } catch (err) {
+      console.warn('[trips] destination cover on get failed:', err?.message || err)
+    }
+  }
+
   res.json({
     success: true,
-    trip,
+    trip: enrichTrip(trip),
   })
 })
 
@@ -202,7 +222,7 @@ const duplicateTrip = asyncHandler(async (req, res) => {
 
   res.status(201).json({
     success: true,
-    trip: populatedTrip,
+    trip: enrichTrip(populatedTrip),
   })
 })
 
@@ -240,7 +260,7 @@ const updateTrip = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    trip,
+    trip: enrichTrip(trip),
   })
 })
 
@@ -278,7 +298,7 @@ const uploadTripImage = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    trip,
+    trip: enrichTrip(trip),
   })
 })
 

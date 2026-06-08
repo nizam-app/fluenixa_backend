@@ -37,6 +37,30 @@ function pickProfileUpdates(body, role) {
       : undefined
   }
 
+  if (role === 'provider' && Object.prototype.hasOwnProperty.call(body, 'companyName')) {
+    updates.companyName = body.companyName ? String(body.companyName).trim() : undefined
+  }
+
+  if (role === 'provider' && Object.prototype.hasOwnProperty.call(body, 'siret')) {
+    updates.siret = body.siret ? String(body.siret).trim() : undefined
+  }
+
+  if (role === 'provider' && Object.prototype.hasOwnProperty.call(body, 'iban')) {
+    updates.iban = body.iban ? String(body.iban).trim().replace(/\s+/g, '') : undefined
+  }
+
+  if (role === 'provider' && Object.prototype.hasOwnProperty.call(body, 'bic')) {
+    updates.bic = body.bic ? String(body.bic).trim().replace(/\s+/g, '') : undefined
+  }
+
+  if (role === 'provider' && Object.prototype.hasOwnProperty.call(body, 'billingAddress')) {
+    updates.billingAddress = body.billingAddress || undefined
+  }
+
+  if (role === 'provider' && Object.prototype.hasOwnProperty.call(body, 'billing')) {
+    updates.billing = body.billing || undefined
+  }
+
   return updates
 }
 

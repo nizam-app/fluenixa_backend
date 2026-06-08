@@ -51,6 +51,12 @@ function loadEnv() {
       apiKey: process.env.CLOUDINARY_API_KEY || '',
       apiSecret: process.env.CLOUDINARY_API_SECRET || '',
     },
+    brevoApiKey: process.env.BREVO_API_KEY || '',
+    brevoFromEmail: process.env.BREVO_FROM_EMAIL || 'noreply@flunexia.org',
+    brevoFromName: process.env.BREVO_FROM_NAME || 'Flunexia',
+    appUrl: process.env.APP_URL || '',
+    googlePlacesApiKey: process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY || '',
+    unsplashAccessKey: process.env.UNSPLASH_ACCESS_KEY || '',
   }
 }
 
