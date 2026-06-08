@@ -72,6 +72,7 @@ const baseTripFields = {
     .default('EUR'),
   tripNote: z.string().trim().max(240).optional(),
   itinerary: z.array(itineraryStopSchema).optional(),
+  openRequests: z.coerce.boolean().optional().default(false),
 }
 
 const capacityRefine = (value) =>

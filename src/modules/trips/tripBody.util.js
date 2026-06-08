@@ -6,6 +6,12 @@ function normalizeTripCreateBody(body) {
 
   if (out.image === '') delete out.image
 
+  if (out.openRequests !== undefined && out.openRequests !== null && out.openRequests !== '') {
+    if (typeof out.openRequests === 'string') {
+      out.openRequests = out.openRequests.toLowerCase() === 'true'
+    }
+  }
+
   for (const field of ['needTypes', 'itinerary']) {
     if (out[field] === undefined || out[field] === null || out[field] === '') continue
     if (Array.isArray(out[field])) continue

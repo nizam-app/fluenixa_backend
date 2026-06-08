@@ -7,6 +7,7 @@ const { assertCanViewTrip, assertOrganizerOwnsTrip } = require('./tripVisibility
 const cloudinary = require('../../services/cloudinary')
 const { applyDestinationCoverToTrip } = require('../../services/tripDestinationCover')
 const { enrichTrip, enrichTrips } = require('../../utils/tripSerialization')
+const { openRequestsForTrip } = require('../requests/openTripRequests')
 
 const ALLOWED_UPDATE_FIELDS = [
   'title',
@@ -119,8 +120,11 @@ const listTrips = asyncHandler(async (req, res) => {
   })
 })
 
+const OPEN_REQUEST_STATUSES = new Set(['published', 'scheduled', 'in_progress'])
+
 const createTrip = asyncHandler(async (req, res) => {
-  const payload = trimStringFields({ ...req.body })
+  const { openRequests = false, ...tripInput } = req.body
+  const payload = trimStringFields({ ...tripInput })
 
   if (!req.file && payload.image) {
     delete payload.image
@@ -149,9 +153,25 @@ const createTrip = asyncHandler(async (req, res) => {
 
   const populatedTrip = await trip.populate('organizer', 'name email role organizationType avatar')
 
+  let openedRequests = []
+  if (
+    openRequests &&
+    req.user.role === 'organizer' &&
+    OPEN_REQUEST_STATUSES.has(trip.status)
+  ) {
+    openedRequests = await openRequestsForTrip({
+      trip,
+      organizer: req.user,
+      message: trip.description,
+    })
+  }
+
   res.status(201).json({
     success: true,
     trip: enrichTrip(populatedTrip),
+    ...(openedRequests.length > 0
+      ? { requestsOpened: openedRequests.length }
+      : {}),
   })
 })
 
