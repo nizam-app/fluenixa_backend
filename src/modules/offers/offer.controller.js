@@ -14,7 +14,10 @@ const TRIP_SUMMARY_FIELDS =
 
 function populateOffer(query) {
   return query
-    .populate('provider', 'name email role providerType avatar rating reviewCount')
+    .populate(
+      'provider',
+      'name email role providerType providerTypes avatar rating reviewCount companyName companyDescription contactPerson',
+    )
     .populate({
       path: 'request',
       populate: [

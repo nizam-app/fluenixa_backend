@@ -19,6 +19,9 @@ function mapProviderForClient(provider) {
     avatar: doc.avatar || null,
     rating,
     reviewCount: doc.reviewCount || 0,
+    companyName: doc.companyName || null,
+    companyDescription: doc.companyDescription || null,
+    contactPerson: doc.contactPerson || null,
     badge: rating !== null && rating >= 4.8 ? 'TOP' : null,
   }
 }
@@ -49,7 +52,9 @@ async function findRecommendedProvidersForTrip(trip, { limit = 8 } = {}) {
   }
 
   const providers = await User.find(query)
-    .select('name email providerType providerTypes pendingProviderTypes avatar rating reviewCount')
+    .select(
+      'name email providerType providerTypes pendingProviderTypes avatar rating reviewCount companyName companyDescription contactPerson',
+    )
     .sort({ rating: -1, name: 1 })
     .limit(limit)
 

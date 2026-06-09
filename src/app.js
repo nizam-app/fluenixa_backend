@@ -59,6 +59,7 @@ function createApp() {
       success: true,
       service: 'flunexia-api',
       status: 'ok',
+      commit: process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || null,
       environment: env.nodeEnv,
       clients: ['web', 'ios', 'android'],
       integrations: {
