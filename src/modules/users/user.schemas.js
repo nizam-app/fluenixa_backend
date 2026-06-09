@@ -1,5 +1,6 @@
 const { z } = require('zod')
 const { PROVIDER_SERVICE_TYPES } = require('../../constants/providerTypes')
+const mongoose = require('mongoose')
 
 const providerTypesField = z
   .array(z.enum(PROVIDER_SERVICE_TYPES))
@@ -76,4 +77,15 @@ const deleteAccountSchema = z.object({
   password: z.string().min(1, 'Password is required to delete your account'),
 })
 
-module.exports = { deleteAccountSchema, updatePasswordSchema, updateProfileSchema }
+const providerIdParamsSchema = z.object({
+  id: z.string().refine((value) => mongoose.Types.ObjectId.isValid(value), {
+    message: 'Invalid id',
+  }),
+})
+
+module.exports = {
+  deleteAccountSchema,
+  providerIdParamsSchema,
+  updatePasswordSchema,
+  updateProfileSchema,
+}

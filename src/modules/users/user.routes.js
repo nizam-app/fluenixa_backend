@@ -6,12 +6,14 @@ const { buildImageUploader, handleMulterError } = require('../../middleware/uplo
 const { validate } = require('../../middleware/validate')
 const {
   deleteAccountSchema,
+  providerIdParamsSchema,
   updatePasswordSchema,
   updateProfileSchema,
 } = require('./user.schemas')
 const {
   deleteAccount,
   getProfile,
+  getProviderProfile,
   updatePassword,
   updateProfile,
   uploadAvatar,
@@ -24,6 +26,7 @@ const router = express.Router()
 
 router.use(requireAuth)
 
+router.get('/providers/:id', validate({ params: providerIdParamsSchema }), getProviderProfile)
 router.get('/me', getProfile)
 router.patch('/me', writeLimiter, validate({ body: updateProfileSchema }), updateProfile)
 router.patch('/me/password', writeLimiter, validate({ body: updatePasswordSchema }), updatePassword)

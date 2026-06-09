@@ -6,6 +6,7 @@ const { ServiceRequest } = require('../requests/serviceRequest.model')
 const { Trip } = require('../trips/trip.model')
 const {
   applyProviderServiceSelection,
+  getApprovedProviderTypes,
   normalizeProviderTypes,
 } = require('../../constants/providerTypes')
 const cloudinary = require('../../services/cloudinary')
@@ -211,9 +212,41 @@ const deleteAccount = asyncHandler(async (req, res) => {
   })
 })
 
+function toPublicProviderProfile(user) {
+  const approvedTypes = getApprovedProviderTypes(user)
+  return {
+    _id: user._id,
+    name: user.name,
+    avatar: user.avatar || null,
+    providerType: user.providerType || approvedTypes[0] || null,
+    providerTypes: approvedTypes,
+    companyName: user.companyName || null,
+    companyDescription: user.companyDescription || null,
+    contactPerson: user.contactPerson || null,
+    rating: typeof user.rating === 'number' ? user.rating : null,
+    reviewCount: user.reviewCount || 0,
+  }
+}
+
+const getProviderProfile = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id).select(
+    'name avatar providerType providerTypes companyName companyDescription contactPerson rating reviewCount role status',
+  )
+
+  if (!user || user.role !== 'provider' || user.status !== 'active') {
+    throw new HttpError('Supplier not found', 404)
+  }
+
+  res.json({
+    success: true,
+    provider: toPublicProviderProfile(user),
+  })
+})
+
 module.exports = {
   deleteAccount,
   getProfile,
+  getProviderProfile,
   updatePassword,
   updateProfile,
   uploadAvatar,
