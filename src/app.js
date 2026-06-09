@@ -54,7 +54,7 @@ function createApp() {
   app.use('/uploads', express.static(path.resolve(env.uploadDir)))
 
   app.get('/api/v1/health', (req, res) => {
-    const { isConfigured: emailConfigured } = require('./services/email')
+    const { getEmailStatus } = require('./services/email')
     res.json({
       success: true,
       service: 'flunexia-api',
@@ -62,7 +62,7 @@ function createApp() {
       environment: env.nodeEnv,
       clients: ['web', 'ios', 'android'],
       integrations: {
-        email: emailConfigured(),
+        email: getEmailStatus(),
         cloudinary: Boolean(env.cloudinary.cloudName || process.env.CLOUDINARY_URL),
         googlePlaces: Boolean(process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY),
       },

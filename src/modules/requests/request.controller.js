@@ -311,6 +311,9 @@ const addRequestMessage = asyncHandler(async (req, res) => {
 
   const offerProviderIds = await getActiveOfferProviderIds(request._id)
   const recipients = getNotificationRecipientsForRequest(request, req.user._id, offerProviderIds)
+  if (recipients.length === 0) {
+    console.warn('[notifications] message posted with no email recipients', String(request._id))
+  }
   for (const recipientId of recipients) {
     await notifyUser(recipientId, {
       type: 'request_message',

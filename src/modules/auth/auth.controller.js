@@ -1,5 +1,6 @@
 const crypto = require('crypto')
 const { loadEnv } = require('../../config/env')
+const { sendWelcomeEmail } = require('../../services/email')
 const { asyncHandler } = require('../../utils/asyncHandler')
 const { HttpError } = require('../../utils/httpError')
 const { signAuthToken } = require('../../utils/jwt')
@@ -57,6 +58,15 @@ const register = asyncHandler(async (req, res) => {
     companyDescription:
       selectedRole === 'provider' && companyDescription ? companyDescription.trim() : undefined,
   })
+
+  try {
+    const emailResult = await sendWelcomeEmail(user)
+    if (!emailResult.sent) {
+      console.warn('[auth] welcome email not sent:', user.email, emailResult.reason || 'unknown')
+    }
+  } catch (error) {
+    console.error('[auth] welcome email failed:', user.email, error?.message || error)
+  }
 
   res.status(201).json({
     success: true,
