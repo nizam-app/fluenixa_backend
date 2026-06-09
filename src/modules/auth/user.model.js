@@ -39,6 +39,14 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    providerTypes: {
+      type: [String],
+      default: [],
+    },
+    pendingProviderTypes: {
+      type: [String],
+      default: [],
+    },
     contactPerson: {
       type: String,
       trim: true,

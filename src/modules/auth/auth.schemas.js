@@ -1,4 +1,11 @@
 const { z } = require('zod')
+const { PROVIDER_SERVICE_TYPES } = require('../../constants/providerTypes')
+
+const providerTypesField = z
+  .array(z.enum(PROVIDER_SERVICE_TYPES))
+  .min(1, 'Select at least one supplier service')
+  .max(PROVIDER_SERVICE_TYPES.length)
+  .optional()
 
 const emailField = z
   .string({ error: 'Email is required' })
@@ -23,7 +30,8 @@ const registerSchema = z
     accountType: accountTypeField.optional(),
     role: accountTypeField.optional(),
     organizationType: z.string().trim().max(120).optional(),
-    providerType: z.string().trim().max(120).optional(),
+    providerType: z.enum(PROVIDER_SERVICE_TYPES).optional(),
+    providerTypes: providerTypesField,
     contactPerson: z.string().trim().max(120).optional(),
     companyDescription: z.string().trim().max(2000).optional(),
   })

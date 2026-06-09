@@ -1,4 +1,10 @@
 const { z } = require('zod')
+const { PROVIDER_SERVICE_TYPES } = require('../../constants/providerTypes')
+
+const providerTypesField = z
+  .array(z.enum(PROVIDER_SERVICE_TYPES))
+  .min(1, 'Select at least one supplier service')
+  .max(PROVIDER_SERVICE_TYPES.length)
 
 const emailField = z
   .string()
@@ -32,7 +38,8 @@ const updateProfileSchema = z
     name: z.string().trim().min(1, 'Name is required').max(120).optional(),
     email: emailField.optional(),
     organizationType: z.string().trim().max(120).nullable().optional(),
-    providerType: z.string().trim().max(120).nullable().optional(),
+    providerType: z.enum(PROVIDER_SERVICE_TYPES).nullable().optional(),
+    providerTypes: providerTypesField.optional(),
     contactPerson: z.string().trim().max(120).nullable().optional(),
     companyDescription: z.string().trim().max(2000).nullable().optional(),
     companyName: z.string().trim().max(200).nullable().optional(),
@@ -48,6 +55,7 @@ const updateProfileSchema = z
       value.email !== undefined ||
       value.organizationType !== undefined ||
       value.providerType !== undefined ||
+      value.providerTypes !== undefined ||
       value.contactPerson !== undefined ||
       value.companyDescription !== undefined ||
       value.companyName !== undefined ||

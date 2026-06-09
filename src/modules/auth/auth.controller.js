@@ -6,6 +6,10 @@ const { HttpError } = require('../../utils/httpError')
 const { signAuthToken } = require('../../utils/jwt')
 const { PasswordReset } = require('./passwordReset.model')
 const { User } = require('./user.model')
+const {
+  applyProviderServiceSelection,
+  normalizeProviderTypes,
+} = require('../../constants/providerTypes')
 
 const RESET_TTL_MS = 60 * 60 * 1000
 
@@ -33,6 +37,7 @@ const register = asyncHandler(async (req, res) => {
     role,
     organizationType,
     providerType,
+    providerTypes,
     contactPerson,
     companyDescription,
   } = req.body
@@ -53,11 +58,20 @@ const register = asyncHandler(async (req, res) => {
     passwordHash: password,
     role: selectedRole,
     organizationType: selectedRole === 'organizer' ? organizationType : undefined,
-    providerType: selectedRole === 'provider' ? providerType : undefined,
     contactPerson: selectedRole === 'provider' && contactPerson ? contactPerson.trim() : undefined,
     companyDescription:
       selectedRole === 'provider' && companyDescription ? companyDescription.trim() : undefined,
   })
+
+  let registrationMeta = { requiresApproval: false, approvalMessage: null, issueToken: true }
+
+  if (selectedRole === 'provider') {
+    const requestedTypes = normalizeProviderTypes(
+      providerTypes?.length ? providerTypes : providerType ? [providerType] : ['Transport'],
+    )
+    registrationMeta = applyProviderServiceSelection(user, requestedTypes, { isRegistration: true })
+    await user.save()
+  }
 
   try {
     const emailResult = await sendWelcomeEmail(user)
@@ -70,7 +84,11 @@ const register = asyncHandler(async (req, res) => {
 
   res.status(201).json({
     success: true,
-    ...buildAuthResponse(user),
+    requiresApproval: registrationMeta.requiresApproval,
+    message: registrationMeta.approvalMessage,
+    ...(registrationMeta.issueToken
+      ? buildAuthResponse(user)
+      : { user: user.toJSON() }),
   })
 })
 
@@ -120,6 +138,12 @@ const login = asyncHandler(async (req, res) => {
   }
 
   if (user.status !== 'active') {
+    if (user.status === 'pending' && user.role === 'provider') {
+      throw new HttpError(
+        'Your supplier account is pending platform administrator approval.',
+        403,
+      )
+    }
     throw new HttpError('This account is not active', 403)
   }
 

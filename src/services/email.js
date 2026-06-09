@@ -1,12 +1,23 @@
 const { loadEnv } = require('../config/env')
 
+function resolveAppUrl(env) {
+  const configured = (process.env.APP_URL || '').trim()
+  if (configured && configured !== '*') return configured.replace(/\/$/, '')
+
+  const clientOrigins = (env.clientOrigin || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+
+  const httpsOrigin = clientOrigins.find((value) => value.startsWith('https://'))
+  if (httpsOrigin) return httpsOrigin.replace(/\/$/, '')
+
+  return (clientOrigins[0] || 'http://localhost:5173').replace(/\/$/, '')
+}
+
 function getEmailConfig() {
   const env = loadEnv()
-  const appUrl = (
-    process.env.APP_URL ||
-    env.clientOrigin.split(',')[0] ||
-    'http://localhost:5173'
-  ).replace(/\/$/, '')
+  const appUrl = resolveAppUrl(env)
 
   return {
     apiKey: process.env.BREVO_API_KEY || '',

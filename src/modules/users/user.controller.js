@@ -4,6 +4,10 @@ const { Notification } = require('../notifications/notification.model')
 const { Offer } = require('../offers/offer.model')
 const { ServiceRequest } = require('../requests/serviceRequest.model')
 const { Trip } = require('../trips/trip.model')
+const {
+  applyProviderServiceSelection,
+  normalizeProviderTypes,
+} = require('../../constants/providerTypes')
 const cloudinary = require('../../services/cloudinary')
 const { asyncHandler } = require('../../utils/asyncHandler')
 const { HttpError } = require('../../utils/httpError')
@@ -21,6 +25,10 @@ function pickProfileUpdates(body, role) {
 
   if (role === 'organizer' && Object.prototype.hasOwnProperty.call(body, 'organizationType')) {
     updates.organizationType = body.organizationType ? String(body.organizationType).trim() : undefined
+  }
+
+  if (role === 'provider' && Object.prototype.hasOwnProperty.call(body, 'providerTypes')) {
+    updates.providerTypes = normalizeProviderTypes(body.providerTypes)
   }
 
   if (role === 'provider' && Object.prototype.hasOwnProperty.call(body, 'providerType')) {
@@ -95,6 +103,7 @@ const getProfile = asyncHandler(async (req, res) => {
 
 const updateProfile = asyncHandler(async (req, res) => {
   const updates = pickProfileUpdates(req.body, req.user.role)
+  let approvalMessage = null
 
   if (Object.keys(updates).length === 0) {
     throw new HttpError('No applicable fields to update for this role', 400)
@@ -107,13 +116,21 @@ const updateProfile = asyncHandler(async (req, res) => {
     }
   }
 
-  const user = await User.findByIdAndUpdate(req.user._id, updates, {
-    new: true,
-    runValidators: true,
-  })
+  const user = await User.findById(req.user._id)
+  if (!user) throw new HttpError('User not found', 404)
+
+  if (user.role === 'provider' && updates.providerTypes) {
+    const result = applyProviderServiceSelection(user, updates.providerTypes)
+    approvalMessage = result.approvalMessage
+    delete updates.providerTypes
+  }
+
+  Object.assign(user, updates)
+  await user.save()
 
   res.json({
     success: true,
+    message: approvalMessage,
     user,
   })
 })
