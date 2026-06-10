@@ -147,13 +147,16 @@ const EMAIL_TEMPLATES = {
 }
 
 async function sendNotificationEmail({ user, type, title, body }) {
-  if (!user?.email) return { sent: false, reason: 'no_recipient' }
+  const recipientEmail = String(user?.email || '')
+    .trim()
+    .toLowerCase()
+  if (!recipientEmail) return { sent: false, reason: 'no_recipient' }
 
   const config = getEmailConfig()
   const templateFn = EMAIL_TEMPLATES[type]
   if (!templateFn) {
     return sendTransactionalEmail({
-      toEmail: user.email,
+      toEmail: recipientEmail,
       toName: user.name,
       subject: title ? `[Flunexia] ${title}` : '[Flunexia] Notification',
       htmlContent: `<p>Hello ${user.name || 'there'},</p><p>${body || title}</p><p><a href="${config.appUrl}">Open Flunexia</a></p>`,
@@ -168,7 +171,7 @@ async function sendNotificationEmail({ user, type, title, body }) {
   })
 
   return sendTransactionalEmail({
-    toEmail: user.email,
+    toEmail: recipientEmail,
     toName: user.name,
     subject: template.subject,
     htmlContent: template.htmlContent,
@@ -194,14 +197,23 @@ function welcomeMessageForRole(role, { pendingApproval = false } = {}) {
   )
 }
 
-async function sendWelcomeEmail(user, { pendingApproval = false } = {}) {
-  if (!user?.email) return { sent: false, reason: 'no_recipient' }
+async function sendWelcomeEmail(user, { pendingApproval = false, email } = {}) {
+  const recipientEmail = String(email || user?.email || '')
+    .trim()
+    .toLowerCase()
+  if (!recipientEmail) return { sent: false, reason: 'no_recipient' }
+
+  const recipient = {
+    email: recipientEmail,
+    name: user?.name || recipientEmail.split('@')[0],
+    role: user?.role,
+  }
 
   return sendNotificationEmail({
-    user,
+    user: recipient,
     type: 'welcome',
     title: pendingApproval ? 'Registration received' : 'Welcome to the Flunexia platform',
-    body: welcomeMessageForRole(user.role, { pendingApproval }),
+    body: welcomeMessageForRole(recipient.role, { pendingApproval }),
   })
 }
 

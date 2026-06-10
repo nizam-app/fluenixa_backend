@@ -74,17 +74,24 @@ const register = asyncHandler(async (req, res) => {
   }
 
   let welcomeEmailSent = false
+  const signupEmail = String(email).trim().toLowerCase()
 
   try {
-    const emailResult = await sendWelcomeEmail(user, {
-      pendingApproval: registrationMeta.requiresApproval,
-    })
+    const emailResult = await sendWelcomeEmail(
+      { name: user.name, role: user.role, email: signupEmail },
+      { pendingApproval: registrationMeta.requiresApproval, email: signupEmail },
+    )
     welcomeEmailSent = emailResult.sent === true
     if (!emailResult.sent) {
-      console.warn('[auth] welcome email not sent:', user.email, emailResult.reason || 'unknown', emailResult.detail || '')
+      console.warn(
+        '[auth] welcome email not sent:',
+        signupEmail,
+        emailResult.reason || 'unknown',
+        emailResult.detail || '',
+      )
     }
   } catch (error) {
-    console.error('[auth] welcome email failed:', user.email, error?.message || error)
+    console.error('[auth] welcome email failed:', signupEmail, error?.message || error)
   }
 
   res.status(201).json({
@@ -92,6 +99,7 @@ const register = asyncHandler(async (req, res) => {
     requiresApproval: registrationMeta.requiresApproval,
     message: registrationMeta.approvalMessage,
     welcomeEmailSent,
+    welcomeEmailSentTo: signupEmail,
     ...(registrationMeta.issueToken
       ? buildAuthResponse(user)
       : { user: user.toJSON() }),
