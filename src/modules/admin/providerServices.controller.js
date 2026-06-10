@@ -1,5 +1,6 @@
 const { User } = require('../auth/user.model')
 const { syncPrimaryProviderType } = require('../../constants/providerTypes')
+const { sendWelcomeEmail } = require('../../services/email')
 const { asyncHandler } = require('../../utils/asyncHandler')
 const { HttpError } = require('../../utils/httpError')
 
@@ -18,9 +19,21 @@ const approveProviderServices = asyncHandler(async (req, res) => {
   user.status = 'active'
   await user.save()
 
+  let welcomeEmailSent = false
+  try {
+    const emailResult = await sendWelcomeEmail(user)
+    welcomeEmailSent = emailResult.sent === true
+    if (!emailResult.sent) {
+      console.warn('[admin] welcome email not sent:', user.email, emailResult.reason || 'unknown', emailResult.detail || '')
+    }
+  } catch (error) {
+    console.error('[admin] welcome email failed:', user.email, error?.message || error)
+  }
+
   res.json({
     success: true,
     message: 'Supplier services approved.',
+    welcomeEmailSent,
     user,
   })
 })

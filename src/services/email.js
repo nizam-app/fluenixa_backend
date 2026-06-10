@@ -1,18 +1,32 @@
 const { loadEnv } = require('../config/env')
 
+function isValidAppUrl(value) {
+  if (!value || value === '*') return false
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 function resolveAppUrl(env) {
   const configured = (process.env.APP_URL || '').trim()
-  if (configured && configured !== '*') return configured.replace(/\/$/, '')
+  if (isValidAppUrl(configured)) return configured.replace(/\/$/, '')
 
   const clientOrigins = (env.clientOrigin || '')
     .split(',')
     .map((value) => value.trim())
-    .filter(Boolean)
+    .filter(isValidAppUrl)
 
   const httpsOrigin = clientOrigins.find((value) => value.startsWith('https://'))
   if (httpsOrigin) return httpsOrigin.replace(/\/$/, '')
 
-  return (clientOrigins[0] || 'http://localhost:5173').replace(/\/$/, '')
+  if (clientOrigins[0]) return clientOrigins[0].replace(/\/$/, '')
+
+  return env.isProduction
+    ? 'https://fluide-web-app.vercel.app'
+    : 'http://localhost:5173'
 }
 
 function getEmailConfig() {
@@ -49,21 +63,35 @@ async function sendTransactionalEmail({ toEmail, toName, subject, htmlContent, t
     return { sent: false, reason: 'email_not_configured' }
   }
 
-  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: {
-      accept: 'application/json',
-      'content-type': 'application/json',
-      'api-key': config.apiKey,
-    },
-    body: JSON.stringify({
-      sender: { name: config.fromName, email: config.fromEmail },
-      to: [{ email: toEmail, name: toName || toEmail }],
-      subject,
-      htmlContent,
-      textContent: textContent || htmlContent.replace(/<[^>]+>/g, ' '),
-    }),
-  })
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 15000)
+
+  let response
+  try {
+    response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'api-key': config.apiKey,
+      },
+      body: JSON.stringify({
+        sender: { name: config.fromName, email: config.fromEmail },
+        to: [{ email: toEmail, name: toName || toEmail }],
+        subject,
+        htmlContent,
+        textContent: textContent || htmlContent.replace(/<[^>]+>/g, ' '),
+      }),
+      signal: controller.signal,
+    })
+  } catch (error) {
+    clearTimeout(timeoutId)
+    const reason = error?.name === 'AbortError' ? 'provider_timeout' : 'provider_error'
+    console.error('[email] Brevo request failed:', reason, error?.message || error)
+    return { sent: false, reason, detail: error?.message || String(error) }
+  }
+
+  clearTimeout(timeoutId)
 
   if (!response.ok) {
     const body = await response.text().catch(() => '')
@@ -112,8 +140,8 @@ const EMAIL_TEMPLATES = {
     subject: `[Flunexia] ${title || 'Request status updated'}`,
     htmlContent: `<p>Hello ${recipientName || 'there'},</p><p>${body}</p><p><a href="${appUrl}">Open Flunexia</a></p>`,
   }),
-  welcome: ({ recipientName, body, appUrl }) => ({
-    subject: '[Flunexia] Welcome to the Flunexia platform',
+  welcome: ({ recipientName, title, body, appUrl }) => ({
+    subject: `[Flunexia] ${title || 'Welcome to the Flunexia platform'}`,
     htmlContent: `<p>Hello ${recipientName || 'there'},</p><p>${body}</p><p><a href="${appUrl}/login">Sign in to Flunexia</a></p>`,
   }),
 }
@@ -147,8 +175,14 @@ async function sendNotificationEmail({ user, type, title, body }) {
   })
 }
 
-function welcomeMessageForRole(role) {
+function welcomeMessageForRole(role, { pendingApproval = false } = {}) {
   if (role === 'provider') {
+    if (pendingApproval) {
+      return (
+        'Thank you for registering as a Flunexia supplier. Your account is pending platform administrator approval. ' +
+        'We will email you again once your services are approved and you can sign in.'
+      )
+    }
     return (
       'Welcome to the Flunexia platform. Your supplier account is ready. ' +
       'Browse trip requests, submit proposals, and manage your bookings from your dashboard.'
@@ -160,14 +194,14 @@ function welcomeMessageForRole(role) {
   )
 }
 
-async function sendWelcomeEmail(user) {
+async function sendWelcomeEmail(user, { pendingApproval = false } = {}) {
   if (!user?.email) return { sent: false, reason: 'no_recipient' }
 
   return sendNotificationEmail({
     user,
     type: 'welcome',
-    title: 'Welcome to the Flunexia platform',
-    body: welcomeMessageForRole(user.role),
+    title: pendingApproval ? 'Registration received' : 'Welcome to the Flunexia platform',
+    body: welcomeMessageForRole(user.role, { pendingApproval }),
   })
 }
 

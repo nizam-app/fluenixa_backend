@@ -73,10 +73,15 @@ const register = asyncHandler(async (req, res) => {
     await user.save()
   }
 
+  let welcomeEmailSent = false
+
   try {
-    const emailResult = await sendWelcomeEmail(user)
+    const emailResult = await sendWelcomeEmail(user, {
+      pendingApproval: registrationMeta.requiresApproval,
+    })
+    welcomeEmailSent = emailResult.sent === true
     if (!emailResult.sent) {
-      console.warn('[auth] welcome email not sent:', user.email, emailResult.reason || 'unknown')
+      console.warn('[auth] welcome email not sent:', user.email, emailResult.reason || 'unknown', emailResult.detail || '')
     }
   } catch (error) {
     console.error('[auth] welcome email failed:', user.email, error?.message || error)
@@ -86,6 +91,7 @@ const register = asyncHandler(async (req, res) => {
     success: true,
     requiresApproval: registrationMeta.requiresApproval,
     message: registrationMeta.approvalMessage,
+    welcomeEmailSent,
     ...(registrationMeta.issueToken
       ? buildAuthResponse(user)
       : { user: user.toJSON() }),
