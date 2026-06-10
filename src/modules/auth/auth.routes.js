@@ -7,6 +7,7 @@ const {
   forgotPasswordSchema,
   loginSchema,
   registerSchema,
+  resendWelcomeSchema,
   resetPasswordSchema,
 } = require('./auth.schemas')
 const {
@@ -16,6 +17,7 @@ const {
   login,
   logout,
   register,
+  resendWelcome,
   resetPassword,
 } = require('./auth.controller')
 
@@ -29,6 +31,12 @@ router.post(
   authLimiter,
   validate({ body: forgotPasswordSchema }),
   forgotPassword,
+)
+router.post(
+  '/resend-welcome',
+  authLimiter,
+  validate({ body: resendWelcomeSchema }),
+  resendWelcome,
 )
 router.post(
   '/reset-password',

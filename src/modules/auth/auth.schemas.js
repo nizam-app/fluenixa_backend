@@ -58,6 +58,10 @@ const forgotPasswordSchema = z.object({
   email: emailField,
 })
 
+const resendWelcomeSchema = z.object({
+  email: emailField,
+})
+
 const resetPasswordSchema = z.object({
   token: z.string().trim().min(1, 'Reset token is required'),
   newPassword: passwordField,
@@ -68,5 +72,6 @@ module.exports = {
   forgotPasswordSchema,
   loginSchema,
   registerSchema,
+  resendWelcomeSchema,
   resetPasswordSchema,
 }
