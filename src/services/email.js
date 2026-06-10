@@ -34,11 +34,11 @@ function getEmailConfig() {
   const appUrl = resolveAppUrl(env)
 
   return {
-    apiKey: process.env.BREVO_API_KEY || '',
-    fromEmail: process.env.BREVO_FROM_EMAIL || 'noreply@flunexia.org',
-    fromName: process.env.BREVO_FROM_NAME || 'Flunexia',
+    apiKey: (process.env.BREVO_API_KEY || '').trim(),
+    fromEmail: (process.env.BREVO_FROM_EMAIL || 'noreply@flunexia.org').trim(),
+    fromName: (process.env.BREVO_FROM_NAME || 'Flunexia').trim(),
     appUrl,
-    enabled: Boolean(process.env.BREVO_API_KEY),
+    enabled: Boolean((process.env.BREVO_API_KEY || '').trim()),
   }
 }
 

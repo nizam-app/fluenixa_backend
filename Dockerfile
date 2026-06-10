@@ -1,6 +1,7 @@
 FROM node:20-alpine AS base
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apk add --no-cache ca-certificates
 
 FROM base AS deps
 COPY package.json package-lock.json ./

@@ -46,6 +46,7 @@ async function deliverWelcomeEmail(signupEmail, user, { pendingApproval = false 
       welcomeEmailSent: emailResult.sent === true,
       welcomeEmailSentTo: signupEmail,
       welcomeEmailError: emailResult.sent ? null : emailResult.reason || 'send_failed',
+      welcomeEmailDetail: emailResult.sent ? null : emailResult.detail || null,
     }
   } catch (error) {
     console.error('[auth] welcome email failed:', signupEmail, error?.message || error)
@@ -53,6 +54,7 @@ async function deliverWelcomeEmail(signupEmail, user, { pendingApproval = false 
       welcomeEmailSent: false,
       welcomeEmailSentTo: signupEmail,
       welcomeEmailError: 'send_failed',
+      welcomeEmailDetail: error?.message || String(error),
     }
   }
 }
