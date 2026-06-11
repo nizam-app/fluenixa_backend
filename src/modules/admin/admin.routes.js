@@ -10,6 +10,7 @@ const {
   listTrips,
   listUsers,
   updateUser,
+  updateUserDocumentStatus,
   updateUserStatus,
 } = require('./admin.controller')
 const { approveProviderServices } = require('./providerServices.controller')
@@ -19,8 +20,10 @@ const {
   listRequestsQuerySchema,
   listTripsQuerySchema,
   listUsersQuerySchema,
+  updateUserDocumentSchema,
   updateUserSchema,
   updateUserStatusSchema,
+  userDocumentParamsSchema,
   userIdParamsSchema,
 } = require('./admin.schemas')
 
@@ -50,6 +53,12 @@ router.patch(
   writeLimiter,
   validate({ params: userIdParamsSchema }),
   approveProviderServices,
+)
+router.patch(
+  '/users/:id/documents/:documentId',
+  writeLimiter,
+  validate({ params: userDocumentParamsSchema, body: updateUserDocumentSchema }),
+  updateUserDocumentStatus,
 )
 router.get('/trips', validate({ query: listTripsQuerySchema }), listTrips)
 router.get('/requests', validate({ query: listRequestsQuerySchema }), listRequests)

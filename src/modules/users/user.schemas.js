@@ -83,8 +83,15 @@ const providerIdParamsSchema = z.object({
   }),
 })
 
+const documentIdParamsSchema = z.object({
+  documentId: z.string().refine((value) => mongoose.Types.ObjectId.isValid(value), {
+    message: 'Invalid document id',
+  }),
+})
+
 module.exports = {
   deleteAccountSchema,
+  documentIdParamsSchema,
   providerIdParamsSchema,
   updatePasswordSchema,
   updateProfileSchema,

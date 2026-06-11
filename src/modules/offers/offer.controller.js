@@ -16,7 +16,7 @@ function populateOffer(query) {
   return query
     .populate(
       'provider',
-      'name email role providerType providerTypes avatar rating reviewCount companyName companyDescription contactPerson',
+      'name email role providerType providerTypes avatar rating reviewCount companyName companyDescription contactPerson siret billingAddress documents',
     )
     .populate({
       path: 'request',

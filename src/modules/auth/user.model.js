@@ -1,8 +1,22 @@
 const bcrypt = require('bcrypt')
 const mongoose = require('mongoose')
+const { DOCUMENT_CATEGORIES, DOCUMENT_STATUSES } = require('../../constants/providerDocuments')
 
 const USER_ROLES = ['admin', 'organizer', 'provider']
 const USER_STATUSES = ['active', 'pending', 'suspended']
+
+const providerDocumentSchema = new mongoose.Schema(
+  {
+    label: { type: String, trim: true, maxlength: 200, required: true },
+    category: { type: String, enum: DOCUMENT_CATEGORIES, default: 'other' },
+    url: { type: String, trim: true, required: true },
+    publicId: { type: String, trim: true },
+    mimeType: { type: String, trim: true, maxlength: 120 },
+    status: { type: String, enum: DOCUMENT_STATUSES, default: 'pending' },
+    uploadedAt: { type: Date, default: Date.now },
+  },
+  { _id: true },
+)
 
 const userSchema = new mongoose.Schema(
   {
@@ -113,6 +127,10 @@ const userSchema = new mongoose.Schema(
       type: Number,
       min: 0,
       default: 0,
+    },
+    documents: {
+      type: [providerDocumentSchema],
+      default: [],
     },
   },
   {

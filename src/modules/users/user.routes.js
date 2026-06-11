@@ -2,25 +2,29 @@ const express = require('express')
 const { loadEnv } = require('../../config/env')
 const { requireAuth } = require('../../middleware/auth.middleware')
 const { writeLimiter } = require('../../middleware/rateLimit')
-const { buildImageUploader, handleMulterError } = require('../../middleware/upload')
+const { buildDocumentUploader, buildImageUploader, handleMulterError } = require('../../middleware/upload')
 const { validate } = require('../../middleware/validate')
 const {
   deleteAccountSchema,
+  documentIdParamsSchema,
   providerIdParamsSchema,
   updatePasswordSchema,
   updateProfileSchema,
 } = require('./user.schemas')
 const {
   deleteAccount,
+  deleteDocument,
   getProfile,
   getProviderProfile,
   updatePassword,
   updateProfile,
   uploadAvatar,
+  uploadDocument,
 } = require('./user.controller')
 
 const env = loadEnv()
 const imageUploader = buildImageUploader({ maxBytes: env.maxUploadBytes })
+const documentUploader = buildDocumentUploader({ maxBytes: env.maxUploadBytes })
 
 const router = express.Router()
 
@@ -36,6 +40,19 @@ router.post(
   imageUploader.single('image'),
   handleMulterError,
   uploadAvatar,
+)
+router.post(
+  '/me/documents',
+  writeLimiter,
+  documentUploader.single('file'),
+  handleMulterError,
+  uploadDocument,
+)
+router.delete(
+  '/me/documents/:documentId',
+  writeLimiter,
+  validate({ params: documentIdParamsSchema }),
+  deleteDocument,
 )
 router.delete('/me', writeLimiter, validate({ body: deleteAccountSchema }), deleteAccount)
 

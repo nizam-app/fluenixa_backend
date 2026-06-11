@@ -1,12 +1,17 @@
 const multer = require('multer')
 const { HttpError } = require('../utils/httpError')
 
-const ALLOWED_MIME_TYPES = new Set([
+const ALLOWED_IMAGE_MIME_TYPES = new Set([
   'image/jpeg',
   'image/jpg',
   'image/png',
   'image/webp',
   'image/gif',
+])
+
+const ALLOWED_DOCUMENT_MIME_TYPES = new Set([
+  ...ALLOWED_IMAGE_MIME_TYPES,
+  'application/pdf',
 ])
 
 /**
@@ -18,8 +23,22 @@ function buildImageUploader({ maxBytes }) {
     storage: multer.memoryStorage(),
     limits: { fileSize: maxBytes },
     fileFilter(req, file, cb) {
-      if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
+      if (!ALLOWED_IMAGE_MIME_TYPES.has(file.mimetype)) {
         cb(new HttpError(`Unsupported image type: ${file.mimetype}`, 415))
+        return
+      }
+      cb(null, true)
+    },
+  })
+}
+
+function buildDocumentUploader({ maxBytes }) {
+  return multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: maxBytes },
+    fileFilter(req, file, cb) {
+      if (!ALLOWED_DOCUMENT_MIME_TYPES.has(file.mimetype)) {
+        cb(new HttpError(`Unsupported document type: ${file.mimetype}`, 415))
         return
       }
       cb(null, true)
@@ -36,4 +55,4 @@ function handleMulterError(err, req, res, next) {
   next(err)
 }
 
-module.exports = { buildImageUploader, handleMulterError }
+module.exports = { buildDocumentUploader, buildImageUploader, handleMulterError }

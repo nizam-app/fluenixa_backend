@@ -2,6 +2,10 @@ const { User, USER_ROLES, USER_STATUSES } = require('../auth/user.model')
 const { Offer } = require('../offers/offer.model')
 const { ServiceRequest } = require('../requests/serviceRequest.model')
 const { TRIP_STATUSES, Trip } = require('../trips/trip.model')
+const {
+  applyProviderServiceSelection,
+  normalizeProviderTypes,
+} = require('../../constants/providerTypes')
 const { asyncHandler } = require('../../utils/asyncHandler')
 const { HttpError } = require('../../utils/httpError')
 const {
@@ -131,16 +135,93 @@ const createUser = asyncHandler(async (req, res) => {
   })
 })
 
+function pickAdminUserUpdates(body) {
+  const updates = {}
+
+  if (Object.prototype.hasOwnProperty.call(body, 'name')) {
+    updates.name = body.name.trim()
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'rating')) {
+    updates.rating = body.rating
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'reviewCount')) {
+    updates.reviewCount = body.reviewCount
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'organizationType')) {
+    updates.organizationType = body.organizationType ? String(body.organizationType).trim() : undefined
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'providerType')) {
+    updates.providerType = body.providerType ? String(body.providerType).trim() : undefined
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'providerTypes')) {
+    updates.providerTypes = normalizeProviderTypes(body.providerTypes)
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'contactPerson')) {
+    updates.contactPerson = body.contactPerson ? String(body.contactPerson).trim() : undefined
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'companyDescription')) {
+    updates.companyDescription = body.companyDescription
+      ? String(body.companyDescription).trim()
+      : undefined
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'companyName')) {
+    updates.companyName = body.companyName ? String(body.companyName).trim() : undefined
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'siret')) {
+    updates.siret = body.siret ? String(body.siret).trim() : undefined
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'iban')) {
+    updates.iban = body.iban ? String(body.iban).trim().replace(/\s+/g, '') : undefined
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'bic')) {
+    updates.bic = body.bic ? String(body.bic).trim().replace(/\s+/g, '') : undefined
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'billingAddress')) {
+    updates.billingAddress = body.billingAddress || undefined
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'billing')) {
+    updates.billing = body.billing || undefined
+  }
+
+  return updates
+}
+
 const updateUser = asyncHandler(async (req, res) => {
-  const updates = { ...req.body }
-  if (updates.name) updates.name = updates.name.trim()
+  const updates = pickAdminUserUpdates(req.body)
+  if (Object.keys(updates).length === 0) {
+    throw new HttpError('No applicable fields to update', 400)
+  }
 
-  const user = await User.findByIdAndUpdate(req.params.id, updates, {
-    new: true,
-    runValidators: true,
-  })
-
+  const user = await User.findById(req.params.id)
   if (!user) throw new HttpError('User not found', 404)
+
+  if (user.role === 'provider' && updates.providerTypes) {
+    applyProviderServiceSelection(user, updates.providerTypes)
+    delete updates.providerTypes
+  }
+
+  Object.assign(user, updates)
+  await user.save()
+
+  res.json({
+    success: true,
+    user,
+  })
+})
+
+const updateUserDocumentStatus = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id)
+  if (!user || user.role !== 'provider') {
+    throw new HttpError('Supplier not found', 404)
+  }
+
+  const doc = user.documents.id(req.params.documentId)
+  if (!doc) {
+    throw new HttpError('Document not found', 404)
+  }
+
+  doc.status = req.body.status
+  await user.save()
 
   res.json({
     success: true,
@@ -228,5 +309,6 @@ module.exports = {
   listTrips,
   listUsers,
   updateUser,
+  updateUserDocumentStatus,
   updateUserStatus,
 }
