@@ -128,6 +128,24 @@ const updateProfile = asyncHandler(async (req, res) => {
     delete updates.providerTypes
   }
 
+  if (updates.billingAddress) {
+    user.billingAddress = {
+      ...(user.billingAddress?.toObject?.() || user.billingAddress || {}),
+      ...updates.billingAddress,
+    }
+    user.markModified('billingAddress')
+    delete updates.billingAddress
+  }
+
+  if (updates.billing) {
+    user.billing = {
+      ...(user.billing?.toObject?.() || user.billing || {}),
+      ...updates.billing,
+    }
+    user.markModified('billing')
+    delete updates.billing
+  }
+
   Object.assign(user, updates)
   await user.save()
 
