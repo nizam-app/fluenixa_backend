@@ -12,7 +12,7 @@ function normalizeTripCreateBody(body) {
     }
   }
 
-  for (const field of ['needTypes', 'itinerary']) {
+  for (const field of ['needTypes', 'itinerary', 'servicePlan']) {
     if (out[field] === undefined || out[field] === null || out[field] === '') continue
     if (Array.isArray(out[field])) continue
     if (typeof out[field] === 'string') {

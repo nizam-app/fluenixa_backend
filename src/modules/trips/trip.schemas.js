@@ -40,6 +40,23 @@ const itineraryStopSchema = z.union([
   legacyItineraryStopSchema,
 ])
 
+const serviceNeedDetailSchema = z.object({
+  needType: z.string().trim().min(1).max(80),
+  pickup: z.string().trim().max(180).optional(),
+  destination: z.string().trim().max(180).optional(),
+  venueName: z.string().trim().max(200).optional(),
+  details: z.string().trim().max(500).optional(),
+})
+
+const servicePlanSchema = z
+  .object({
+    serviceDate: z.string().trim().max(32).optional(),
+    timeFrom: z.string().trim().max(16).optional(),
+    timeTo: z.string().trim().max(16).optional(),
+    needs: z.array(serviceNeedDetailSchema).optional().default([]),
+  })
+  .optional()
+
 const baseTripFields = {
   title: z.string().trim().min(1, 'Title is required').max(160),
   description: z.string().trim().min(1, 'Description is required').max(3000),
@@ -72,6 +89,7 @@ const baseTripFields = {
     .default('EUR'),
   tripNote: z.string().trim().max(240).optional(),
   itinerary: z.array(itineraryStopSchema).optional(),
+  servicePlan: servicePlanSchema,
   openRequests: z.coerce.boolean().optional().default(false),
 }
 
@@ -112,6 +130,7 @@ const updateTripSchema = z
     entryFeeCurrency: baseTripFields.entryFeeCurrency,
     tripNote: baseTripFields.tripNote,
     itinerary: baseTripFields.itinerary,
+    servicePlan: baseTripFields.servicePlan,
   })
   .refine(
     (value) =>

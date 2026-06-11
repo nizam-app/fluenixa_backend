@@ -29,6 +29,7 @@ const ALLOWED_UPDATE_FIELDS = [
   'entryFeeCurrency',
   'tripNote',
   'itinerary',
+  'servicePlan',
 ]
 
 function getTripQueryForUser(user) {

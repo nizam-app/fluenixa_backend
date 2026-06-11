@@ -4,6 +4,27 @@ const NEED_TYPES = ['Transport', 'Activity', 'Restaurant', 'Hotel', 'Other Servi
 const TRIP_STATUSES = ['draft', 'published', 'scheduled', 'in_progress', 'completed', 'cancelled']
 const BOOKING_MODES = ['multi_provider', 'bundled']
 
+const serviceNeedDetailSchema = new mongoose.Schema(
+  {
+    needType: { type: String, trim: true, maxlength: 80 },
+    pickup: { type: String, trim: true, maxlength: 180 },
+    destination: { type: String, trim: true, maxlength: 180 },
+    venueName: { type: String, trim: true, maxlength: 200 },
+    details: { type: String, trim: true, maxlength: 500 },
+  },
+  { _id: false },
+)
+
+const servicePlanSchema = new mongoose.Schema(
+  {
+    serviceDate: { type: String, trim: true, maxlength: 32 },
+    timeFrom: { type: String, trim: true, maxlength: 16 },
+    timeTo: { type: String, trim: true, maxlength: 16 },
+    needs: { type: [serviceNeedDetailSchema], default: [] },
+  },
+  { _id: false },
+)
+
 const itineraryLegSchema = new mongoose.Schema(
   {
     label: { type: String, trim: true, maxlength: 120 },
@@ -127,6 +148,10 @@ const tripSchema = new mongoose.Schema(
     itinerary: {
       type: [itineraryLegSchema],
       default: [],
+    },
+    servicePlan: {
+      type: servicePlanSchema,
+      default: undefined,
     },
   },
   {

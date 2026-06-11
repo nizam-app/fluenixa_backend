@@ -1,4 +1,5 @@
 const { recordAudit } = require('../../services/audit')
+const { formatServiceNeedMessage } = require('../../utils/servicePlan')
 const { ServiceRequest } = require('./serviceRequest.model')
 
 function buildBundledRequestMessage(trip) {
@@ -66,11 +67,14 @@ async function openRequestsForTrip({ trip, organizer, message }) {
   for (const needType of needTypes) {
     if (existingNeedTypes.has(needType)) continue
 
+    const planMessage = formatServiceNeedMessage(trip.servicePlan, needType)
+    const requestMessage = [planMessage, message?.trim()].filter(Boolean).join('\n\n') || undefined
+
     const request = await createTripRequest({
       trip,
       organizer,
       needType,
-      message,
+      message: requestMessage,
     })
     created.push(request)
   }
