@@ -1,12 +1,19 @@
 const express = require('express')
+const { loadEnv } = require('../../config/env')
 const { requireAuth, requireRoles } = require('../../middleware/auth.middleware')
 const { writeLimiter } = require('../../middleware/rateLimit')
+const { buildDocumentUploader } = require('../../middleware/upload')
 const { validate } = require('../../middleware/validate')
 const {
   createOffer,
   listOffersForRequest,
 } = require('../offers/offer.controller')
+const { buildParseOfferCreateRequest } = require('../offers/offerCreate.middleware')
 const { createOfferSchema } = require('../offers/offer.schemas')
+
+const env = loadEnv()
+const offerAttachmentUploader = buildDocumentUploader({ maxBytes: env.maxUploadBytes })
+const parseOfferCreateRequest = buildParseOfferCreateRequest(offerAttachmentUploader)
 const {
   addRequestMessage,
   createRequest,
@@ -82,7 +89,9 @@ router
   .post(
     requireRoles('provider'),
     writeLimiter,
-    validate({ params: requestNestedParamsSchema, body: createOfferSchema }),
+    validate({ params: requestNestedParamsSchema }),
+    parseOfferCreateRequest,
+    validate({ body: createOfferSchema }),
     createOffer,
   )
 

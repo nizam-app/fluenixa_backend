@@ -16,6 +16,7 @@ const createOfferSchema = z.object({
     .toUpperCase()
     .optional(),
   tier: z.enum(OFFER_TIERS).optional(),
+  attachmentLabel: z.string().trim().max(200).optional(),
 })
 
 const updateOfferStatusSchema = z

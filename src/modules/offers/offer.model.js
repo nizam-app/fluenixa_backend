@@ -52,6 +52,12 @@ const offerSchema = new mongoose.Schema(
       trim: true,
       maxlength: 1000,
     },
+    attachment: {
+      url: { type: String, trim: true },
+      publicId: { type: String, trim: true },
+      fileName: { type: String, trim: true, maxlength: 200 },
+      mimeType: { type: String, trim: true, maxlength: 120 },
+    },
   },
   {
     timestamps: true,

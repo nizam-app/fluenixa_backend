@@ -6,7 +6,31 @@ const { notifyUser } = require('../../services/notifications')
 const { asyncHandler } = require('../../utils/asyncHandler')
 const { HttpError } = require('../../utils/httpError')
 const { paginateQuery, parsePagination } = require('../../utils/pagination')
+const cloudinary = require('../../services/cloudinary')
 const { OFFER_STATUSES, Offer } = require('./offer.model')
+
+async function applyOfferAttachment(offer, file, label) {
+  if (!cloudinary.isConfigured()) {
+    throw new HttpError(
+      'Attachment upload is not configured. Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET on the server.',
+      503,
+    )
+  }
+
+  const result = await cloudinary.uploadDocumentBuffer(file.buffer, {
+    folder: 'flunexia/offer-attachments',
+    publicId: `offer-${offer._id}`,
+    mimeType: file.mimetype,
+  })
+
+  offer.attachment = {
+    url: result.secure_url,
+    publicId: result.public_id,
+    fileName: label || file.originalname || 'attachment',
+    mimeType: file.mimetype,
+  }
+  await offer.save()
+}
 
 const AUTO_REJECT_REASON = 'Another offer was selected for this request.'
 const TRIP_SUMMARY_FIELDS =
@@ -171,6 +195,18 @@ const createOffer = asyncHandler(async (req, res) => {
       currency: req.body.currency || 'EUR',
       tier: req.body.tier || 'standard',
     })
+
+    if (req.file) {
+      try {
+        const label = req.body.attachmentLabel
+          ? String(req.body.attachmentLabel).trim()
+          : req.file.originalname
+        await applyOfferAttachment(offer, req.file, label)
+      } catch (error) {
+        await offer.deleteOne()
+        throw error
+      }
+    }
 
     const populatedOffer = await populateOffer(Offer.findById(offer._id))
     const trip = await Trip.findById(request.trip).select('title')
