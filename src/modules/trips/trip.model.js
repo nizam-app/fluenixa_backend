@@ -15,12 +15,23 @@ const serviceNeedDetailSchema = new mongoose.Schema(
   { _id: false },
 )
 
+const servicePlanStepSchema = new mongoose.Schema(
+  {
+    serviceDate: { type: String, trim: true, maxlength: 32 },
+    timeFrom: { type: String, trim: true, maxlength: 16 },
+    timeTo: { type: String, trim: true, maxlength: 16 },
+    needs: { type: [serviceNeedDetailSchema], default: [] },
+  },
+  { _id: false },
+)
+
 const servicePlanSchema = new mongoose.Schema(
   {
     serviceDate: { type: String, trim: true, maxlength: 32 },
     timeFrom: { type: String, trim: true, maxlength: 16 },
     timeTo: { type: String, trim: true, maxlength: 16 },
     needs: { type: [serviceNeedDetailSchema], default: [] },
+    steps: { type: [servicePlanStepSchema], default: [] },
   },
   { _id: false },
 )

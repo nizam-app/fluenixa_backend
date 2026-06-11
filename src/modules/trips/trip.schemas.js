@@ -48,12 +48,20 @@ const serviceNeedDetailSchema = z.object({
   details: z.string().trim().max(500).optional(),
 })
 
+const servicePlanStepSchema = z.object({
+  serviceDate: z.string().trim().max(32).optional(),
+  timeFrom: z.string().trim().max(16).optional(),
+  timeTo: z.string().trim().max(16).optional(),
+  needs: z.array(serviceNeedDetailSchema).optional().default([]),
+})
+
 const servicePlanSchema = z
   .object({
     serviceDate: z.string().trim().max(32).optional(),
     timeFrom: z.string().trim().max(16).optional(),
     timeTo: z.string().trim().max(16).optional(),
     needs: z.array(serviceNeedDetailSchema).optional().default([]),
+    steps: z.array(servicePlanStepSchema).optional().default([]),
   })
   .optional()
 
