@@ -3,7 +3,7 @@ const path = require('path')
 
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') })
 
-const API_URL = (process.env.SEED_API_URL || 'http://localhost:5000/api/v1').replace(/\/$/, '')
+const API_URL = (process.env.SEED_API_URL || 'https://api.flunexia.fr/api/v1').replace(/\/$/, '')
 const ADMIN_BOOTSTRAP_KEY = process.env.ADMIN_BOOTSTRAP_KEY || ''
 const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD || 'demo123'
 
