@@ -13,6 +13,7 @@ const {
 const cloudinary = require('../../services/cloudinary')
 const { asyncHandler } = require('../../utils/asyncHandler')
 const { HttpError } = require('../../utils/httpError')
+const { normalizeLocale } = require('../../constants/locales')
 const { toPublicProviderProfile } = require('../../utils/providerProfile')
 
 function pickProfileUpdates(body, role) {
@@ -24,6 +25,10 @@ function pickProfileUpdates(body, role) {
 
   if (Object.prototype.hasOwnProperty.call(body, 'email')) {
     updates.email = body.email.trim().toLowerCase()
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'locale')) {
+    updates.locale = normalizeLocale(body.locale)
   }
 
   if (role === 'organizer' && Object.prototype.hasOwnProperty.call(body, 'organizationType')) {

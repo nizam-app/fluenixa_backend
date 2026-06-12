@@ -6,6 +6,7 @@ const { HttpError } = require('../../utils/httpError')
 const { signAuthToken } = require('../../utils/jwt')
 const { PasswordReset } = require('./passwordReset.model')
 const { User } = require('./user.model')
+const { normalizeLocale } = require('../../constants/locales')
 const {
   applyProviderServiceSelection,
   normalizeProviderTypes,
@@ -71,6 +72,7 @@ const register = asyncHandler(async (req, res) => {
     providerTypes,
     contactPerson,
     companyDescription,
+    locale,
   } = req.body
   const selectedRole = (accountType || role || '').toLowerCase()
 
@@ -88,6 +90,7 @@ const register = asyncHandler(async (req, res) => {
     name: (name || email.split('@')[0]).trim(),
     passwordHash: password,
     role: selectedRole,
+    locale: normalizeLocale(locale),
     organizationType: selectedRole === 'organizer' ? organizationType : undefined,
     contactPerson: selectedRole === 'provider' && contactPerson ? contactPerson.trim() : undefined,
     companyDescription:

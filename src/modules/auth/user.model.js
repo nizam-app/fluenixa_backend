@@ -105,6 +105,11 @@ const userSchema = new mongoose.Schema(
       paymentTerms: { type: String, trim: true, maxlength: 200 },
       notes: { type: String, trim: true, maxlength: 1000 },
     },
+    locale: {
+      type: String,
+      enum: ['en', 'fr'],
+      default: 'fr',
+    },
     status: {
       type: String,
       enum: USER_STATUSES,

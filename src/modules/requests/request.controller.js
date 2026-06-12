@@ -187,6 +187,9 @@ const createRequest = asyncHandler(async (req, res) => {
       body: `${req.body.needType} request on ${trip.title}`,
       trip: trip._id,
       request: request._id,
+      emailMetadata: {
+        projectName: trip.title,
+      },
     })
   }
 
@@ -266,6 +269,9 @@ const updateRequest = asyncHandler(async (req, res) => {
       body: `The ${request.needType} request was modified`,
       trip: request.trip._id || request.trip,
       request: request._id,
+      emailMetadata: {
+        projectName: request.trip?.title || request.trip?.name,
+      },
     })
   }
 
@@ -321,6 +327,9 @@ const addRequestMessage = asyncHandler(async (req, res) => {
       body: `${req.user.name}: ${req.body.body.trim().slice(0, 180)}`,
       trip: request.trip._id || request.trip,
       request: request._id,
+      emailMetadata: {
+        projectName: request.trip?.title || request.trip?.name,
+      },
     })
   }
 

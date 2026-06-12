@@ -1,4 +1,5 @@
 const { z } = require('zod')
+const { SUPPORTED_LOCALES } = require('../../constants/locales')
 const { PROVIDER_SERVICE_TYPES } = require('../../constants/providerTypes')
 const mongoose = require('mongoose')
 
@@ -49,11 +50,13 @@ const updateProfileSchema = z
     bic: z.string().trim().max(11).nullable().optional(),
     billingAddress: billingAddressSchema,
     billing: billingSchema,
+    locale: z.enum(SUPPORTED_LOCALES).optional(),
   })
   .refine(
     (value) =>
       value.name !== undefined ||
       value.email !== undefined ||
+      value.locale !== undefined ||
       value.organizationType !== undefined ||
       value.providerType !== undefined ||
       value.providerTypes !== undefined ||

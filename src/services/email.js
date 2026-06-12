@@ -1,4 +1,6 @@
 const { loadEnv } = require('../config/env')
+const { normalizeLocale } = require('../constants/locales')
+const { renderNotificationEmail, welcomeMessageForRole } = require('./emailTemplates')
 
 function isValidAppUrl(value) {
   if (!value || value === '*') return false
@@ -103,71 +105,19 @@ async function sendTransactionalEmail({ toEmail, toName, subject, htmlContent, t
   return { sent: true }
 }
 
-const EMAIL_TEMPLATES = {
-  offer_received: ({ recipientName, title, body, appUrl }) => ({
-    subject: `[Flunexia] ${title || 'New offer received'}`,
-    htmlContent: `<p>Hello ${recipientName || 'there'},</p><p>${body}</p><p><a href="${appUrl}">Open Flunexia</a></p>`,
-  }),
-  offer_updated: ({ recipientName, title, body, appUrl }) => ({
-    subject: `[Flunexia] ${title || 'Offer updated'}`,
-    htmlContent: `<p>Hello ${recipientName || 'there'},</p><p>${body}</p><p><a href="${appUrl}">Review the updated offer</a></p>`,
-  }),
-  offer_accepted: ({ recipientName, title, body, appUrl }) => ({
-    subject: `[Flunexia] ${title || 'Offer accepted'}`,
-    htmlContent: `<p>Hello ${recipientName || 'there'},</p><p>${body}</p><p><a href="${appUrl}">View your offers</a></p>`,
-  }),
-  offer_rejected: ({ recipientName, title, body, appUrl }) => ({
-    subject: `[Flunexia] ${title || 'Offer declined'}`,
-    htmlContent: `<p>Hello ${recipientName || 'there'},</p><p>${body}</p><p><a href="${appUrl}">Open Flunexia</a></p>`,
-  }),
-  offer_withdrawn: ({ recipientName, title, body, appUrl }) => ({
-    subject: `[Flunexia] ${title || 'Offer withdrawn'}`,
-    htmlContent: `<p>Hello ${recipientName || 'there'},</p><p>${body}</p><p><a href="${appUrl}">Open Flunexia</a></p>`,
-  }),
-  request_created: ({ recipientName, title, body, appUrl }) => ({
-    subject: `[Flunexia] ${title || 'New service request'}`,
-    htmlContent: `<p>Hello ${recipientName || 'there'},</p><p>${body}</p><p><a href="${appUrl}">Review the request</a></p>`,
-  }),
-  request_modified: ({ recipientName, title, body, appUrl }) => ({
-    subject: `[Flunexia] ${title || 'Request updated'}`,
-    htmlContent: `<p>Hello ${recipientName || 'there'},</p><p>${body}</p><p><a href="${appUrl}">View the updated request</a></p>`,
-  }),
-  request_message: ({ recipientName, title, body, appUrl }) => ({
-    subject: `[Flunexia] ${title || 'New message on request'}`,
-    htmlContent: `<p>Hello ${recipientName || 'there'},</p><p>${body}</p><p><a href="${appUrl}">Read the message</a></p>`,
-  }),
-  request_status: ({ recipientName, title, body, appUrl }) => ({
-    subject: `[Flunexia] ${title || 'Request status updated'}`,
-    htmlContent: `<p>Hello ${recipientName || 'there'},</p><p>${body}</p><p><a href="${appUrl}">Open Flunexia</a></p>`,
-  }),
-  welcome: ({ recipientName, title, body, appUrl }) => ({
-    subject: `[Flunexia] ${title || 'Welcome to the Flunexia platform'}`,
-    htmlContent: `<p>Hello ${recipientName || 'there'},</p><p>${body}</p><p><a href="${appUrl}/login">Sign in to Flunexia</a></p>`,
-  }),
-}
-
-async function sendNotificationEmail({ user, type, title, body }) {
+async function sendNotificationEmail({ user, type, title, body, metadata = {}, tripId }) {
   const recipientEmail = String(user?.email || '')
     .trim()
     .toLowerCase()
   if (!recipientEmail) return { sent: false, reason: 'no_recipient' }
 
   const config = getEmailConfig()
-  const templateFn = EMAIL_TEMPLATES[type]
-  if (!templateFn) {
-    return sendTransactionalEmail({
-      toEmail: recipientEmail,
-      toName: user.name,
-      subject: title ? `[Flunexia] ${title}` : '[Flunexia] Notification',
-      htmlContent: `<p>Hello ${user.name || 'there'},</p><p>${body || title}</p><p><a href="${config.appUrl}">Open Flunexia</a></p>`,
-    })
-  }
-
-  const template = templateFn({
-    recipientName: user.name,
-    title,
-    body,
+  const template = renderNotificationEmail({
+    type,
+    user: { ...user, locale: normalizeLocale(user?.locale) },
+    metadata: { ...metadata, title, body, fallbackBody: body },
     appUrl: config.appUrl,
+    tripId: tripId || metadata.tripId,
   })
 
   return sendTransactionalEmail({
@@ -175,26 +125,8 @@ async function sendNotificationEmail({ user, type, title, body }) {
     toName: user.name,
     subject: template.subject,
     htmlContent: template.htmlContent,
+    textContent: template.textContent,
   })
-}
-
-function welcomeMessageForRole(role, { pendingApproval = false } = {}) {
-  if (role === 'provider') {
-    if (pendingApproval) {
-      return (
-        'Thank you for registering as a Flunexia supplier. Your account is pending platform administrator approval. ' +
-        'We will email you again once your services are approved and you can sign in.'
-      )
-    }
-    return (
-      'Welcome to the Flunexia platform. Your supplier account is ready. ' +
-      'Browse trip requests, submit proposals, and manage your bookings from your dashboard.'
-    )
-  }
-  return (
-    'Welcome to the Flunexia platform. Your organizer account is ready. ' +
-    'Create trips, open service requests, and connect with trusted suppliers.'
-  )
 }
 
 async function sendWelcomeEmail(user, { pendingApproval = false, email } = {}) {
@@ -203,17 +135,26 @@ async function sendWelcomeEmail(user, { pendingApproval = false, email } = {}) {
     .toLowerCase()
   if (!recipientEmail) return { sent: false, reason: 'no_recipient' }
 
+  const locale = normalizeLocale(user?.locale)
   const recipient = {
     email: recipientEmail,
     name: user?.name || recipientEmail.split('@')[0],
     role: user?.role,
+    locale,
   }
 
   return sendNotificationEmail({
     user: recipient,
     type: 'welcome',
-    title: pendingApproval ? 'Registration received' : 'Welcome to the Flunexia platform',
-    body: welcomeMessageForRole(recipient.role, { pendingApproval }),
+    title: pendingApproval
+      ? locale === 'fr'
+        ? 'Inscription reçue'
+        : 'Registration received'
+      : locale === 'fr'
+        ? 'Bienvenue sur Flunexia'
+        : 'Welcome to Flunexia',
+    body: welcomeMessageForRole(recipient.role, locale, { pendingApproval }),
+    tripId: null,
   })
 }
 

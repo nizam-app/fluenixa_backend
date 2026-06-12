@@ -8,6 +8,9 @@ const cloudinary = require('../../services/cloudinary')
 const { applyDestinationCoverToTrip } = require('../../services/tripDestinationCover')
 const { enrichTrip, enrichTrips } = require('../../utils/tripSerialization')
 const { openRequestsForTrip } = require('../requests/openTripRequests')
+const { ServiceRequest } = require('../requests/serviceRequest.model')
+const { Offer } = require('../offers/offer.model')
+const { notifyUser } = require('../../services/notifications')
 
 const ALLOWED_UPDATE_FIELDS = [
   'title',
@@ -275,9 +278,56 @@ const updateTrip = asyncHandler(async (req, res) => {
     throw new HttpError('joinedCount cannot exceed participants', 400)
   }
 
+  const meaningfulFields = [
+    'title',
+    'description',
+    'location',
+    'startDate',
+    'endDate',
+    'participants',
+    'needTypes',
+    'budgetEstimate',
+    'budgetCurrency',
+    'bookingMode',
+    'servicePlan',
+    'itinerary',
+  ]
+  const hasMeaningfulChange = meaningfulFields.some((field) =>
+    Object.prototype.hasOwnProperty.call(updates, field),
+  )
+
   Object.assign(trip, updates)
   await trip.save()
   await trip.populate('organizer', 'name email role organizationType avatar')
+
+  if (hasMeaningfulChange) {
+    const requests = await ServiceRequest.find({ trip: trip._id }).select('_id provider')
+    const requestIds = requests.map((row) => row._id)
+    const offers = await Offer.find({
+      request: { $in: requestIds },
+      status: { $in: ['submitted', 'accepted'] },
+    }).select('provider')
+    const recipientIds = new Set()
+    requests.forEach((row) => {
+      if (row.provider) recipientIds.add(String(row.provider))
+    })
+    offers.forEach((row) => {
+      if (row.provider) recipientIds.add(String(row.provider))
+    })
+    recipientIds.delete(String(req.user._id))
+
+    for (const recipientId of recipientIds) {
+      await notifyUser(recipientId, {
+        type: 'trip_modified',
+        title: 'Project updated',
+        body: `The project "${trip.title}" was modified`,
+        trip: trip._id,
+        emailMetadata: {
+          projectName: trip.title,
+        },
+      })
+    }
+  }
 
   res.json({
     success: true,

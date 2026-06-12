@@ -1,4 +1,5 @@
 const { z } = require('zod')
+const { SUPPORTED_LOCALES } = require('../../constants/locales')
 const { PROVIDER_SERVICE_TYPES } = require('../../constants/providerTypes')
 
 const providerTypesField = z
@@ -34,6 +35,7 @@ const registerSchema = z
     providerTypes: providerTypesField,
     contactPerson: z.string().trim().max(120).optional(),
     companyDescription: z.string().trim().max(2000).optional(),
+    locale: z.enum(SUPPORTED_LOCALES).optional(),
   })
   .refine((value) => Boolean(value.accountType || value.role), {
     message: 'accountType is required',

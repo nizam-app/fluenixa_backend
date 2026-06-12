@@ -17,12 +17,13 @@ async function resolveRecipient(userRef, explicitRecipient) {
       name: userRef.name,
       email: userRef.email,
       role: userRef.role,
+      locale: userRef.locale,
     }
   }
 
   const userId = normalizeUserId(userRef)
   if (!userId) return null
-  return User.findById(userId).select('name email role')
+  return User.findById(userId).select('name email role locale')
 }
 
 async function notifyUser(userRef, payload = {}) {
@@ -52,6 +53,8 @@ async function notifyUser(userRef, payload = {}) {
       type: payload.type,
       title: payload.title,
       body: payload.body,
+      metadata: payload.emailMetadata || payload.metadata || {},
+      tripId: payload.trip ? String(payload.trip) : undefined,
     })
 
     if (!emailResult.sent) {

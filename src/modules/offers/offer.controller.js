@@ -218,6 +218,13 @@ const createOffer = asyncHandler(async (req, res) => {
       trip: request.trip,
       request: request._id,
       offer: offer._id,
+      emailMetadata: {
+        projectName: trip?.title,
+        supplierName: req.user.name,
+        price: offer.price,
+        currency: offer.currency,
+        createdAt: offer.createdAt,
+      },
     })
 
     await recordAudit({
@@ -352,6 +359,8 @@ const updateOfferStatus = asyncHandler(async (req, res) => {
 
   const populatedOffer = await populateOffer(Offer.findById(offer._id))
 
+  const tripForEmail = await Trip.findById(offer.request.trip).select('title')
+
   if (newStatus === 'accepted') {
     await recordAudit({
       entityType: 'offer',
@@ -371,6 +380,9 @@ const updateOfferStatus = asyncHandler(async (req, res) => {
       trip: offer.request.trip,
       request: offer.request._id,
       offer: offer._id,
+      emailMetadata: {
+        projectName: tripForEmail?.title,
+      },
     })
 
     for (const rejected of autoRejectedOffers) {
@@ -391,6 +403,9 @@ const updateOfferStatus = asyncHandler(async (req, res) => {
         trip: offer.request.trip,
         request: offer.request._id,
         offer: rejected._id,
+        emailMetadata: {
+          projectName: tripForEmail?.title,
+        },
       })
     }
   } else if (newStatus === 'rejected') {
@@ -418,6 +433,9 @@ const updateOfferStatus = asyncHandler(async (req, res) => {
       metadata: populatedForNotify?.rejectionReason
         ? { rejectionReason: populatedForNotify.rejectionReason }
         : undefined,
+      emailMetadata: {
+        projectName: tripForEmail?.title,
+      },
     })
   } else if (newStatus === 'withdrawn') {
     await notifyUser(offer.request.organizer, {
@@ -427,6 +445,9 @@ const updateOfferStatus = asyncHandler(async (req, res) => {
       trip: offer.request.trip,
       request: offer.request._id,
       offer: offer._id,
+      emailMetadata: {
+        projectName: tripForEmail?.title,
+      },
     })
   }
 
@@ -475,6 +496,10 @@ const updateOffer = asyncHandler(async (req, res) => {
     trip: request.trip,
     request: request._id,
     offer: offer._id,
+    emailMetadata: {
+      projectName: trip?.title,
+      supplierName: req.user.name,
+    },
   })
 
   await recordAudit({
