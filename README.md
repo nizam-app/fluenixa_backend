@@ -1,283 +1,362 @@
-# Flunexia API (`backend/`)
+# Flunexia API (Backend)
 
-Express 5 + Mongoose 9 REST API powering the Fluide / Flunexia web app. Organizers post trips, providers offer services, admins moderate everything.
+REST API for **Flunexia** — a B2B marketplace that connects **organizers** (municipalities, schools, associations) with **suppliers** (transport, accommodation, catering, activities, equipment) to plan group trips and manage service requests, offers, and bookings.
 
-## Stack
+| | |
+|---|---|
+| **Production base URL** | `https://api.flunexia.fr/api/v1` |
+| **Repository** | [github.com/nizam-app/fluenixa_backend](https://github.com/nizam-app/fluenixa_backend) |
+| **Runtime** | Node.js 20+ |
+| **Stack** | Express 5 · MongoDB · JWT · Cloudinary · Brevo |
 
-- Node.js 20+, Express 5, Mongoose 9, CommonJS
-- JWT auth (bcrypt password hashing)
-- Zod request validation
-- helmet + CORS + morgan + express-rate-limit
-- Multer + **Cloudinary** image uploads (CDN, automatic optimization)
-- ESLint 10 (flat config)
+---
 
-## Quick start
+## Table of contents
 
-```bash
-cp .env.example .env
-npm install
-npm run gen-secret           # paste into JWT_SECRET in .env
-npm run dev                  # nodemon src/server.js
+- [Overview](#overview)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Prerequisites](#prerequisites)
+- [Quick start (local)](#quick-start-local)
+- [Environment variables](#environment-variables)
+- [npm scripts](#npm-scripts)
+- [API surface](#api-surface)
+- [User roles](#user-roles)
+- [File uploads](#file-uploads)
+- [Production deployment (VPS)](#production-deployment-vps)
+- [Docker](#docker)
+- [Demo data](#demo-data)
+- [Security notes](#security-notes)
+- [Project structure](#project-structure)
+- [Troubleshooting](#troubleshooting)
+
+---
+
+## Overview
+
+The backend powers:
+
+- The **Flunexia web app** ([fluide-web-app](https://github.com/nizam-app/fluide_web_app))
+- Optional **mobile** clients (`/api/v1/mobile`)
+
+All authenticated routes expect a Bearer JWT unless noted otherwise. Responses are JSON with `{ success: true, ... }` on success; errors return `{ success: false, message: "..." }` with an appropriate HTTP status.
+
+Health check:
+
+```http
+GET /api/v1/health
 ```
 
-The server listens on `PORT` (default 5000). Health check: `GET /api/v1/health`.
+---
 
-## Environment
+## Features
 
-| Variable | Required | Notes |
-| --- | --- | --- |
-| `PORT` | no | Defaults to `5000` |
-| `NODE_ENV` | no | `development` \| `production` \| `test` |
-| `MONGODB_URI` | yes | Mongo connection string. Atlas/replica-set recommended (transactions) |
-| `JWT_SECRET` | yes | 32+ chars in production. Generate with `npm run gen-secret` |
-| `JWT_EXPIRES_IN` | no | Default `7d` |
-| `CLIENT_ORIGIN` | no | Comma-separated origins or `*`. Default `http://localhost:5173` |
-| `ADMIN_BOOTSTRAP_KEY` | prod | Required header value to call `POST /auth/bootstrap-admin` |
-| `CLOUDINARY_URL` *(or the three split values)* | for image uploads | One-line form `cloudinary://<api_key>:<api_secret>@<cloud_name>` |
-| `CLOUDINARY_CLOUD_NAME` | alternative to URL | Cloudinary cloud name |
-| `CLOUDINARY_API_KEY` | alternative to URL | Cloudinary API key |
-| `CLOUDINARY_API_SECRET` | alternative to URL | Cloudinary API secret |
-| `MAX_UPLOAD_BYTES` | no | Default `5242880` (5 MiB) |
-| `UPLOAD_DIR` | no | Legacy. Default `uploads`. Still served at `/uploads/<file>` so any pre-Cloudinary local files keep working |
-| `TRUST_PROXY` | no | Set `true` behind a reverse proxy so rate limiting sees the real IP |
+### Organizers
+- Create and publish trips with need types, itinerary, and **service plan** (transfer, hotel, restaurant, equipment details)
+- Open service requests per need type; messaging and history on requests
+- Review supplier offers (with optional **quote attachments**)
+- Accept / reject offers; favorite suppliers
+- View supplier trust profiles (SIRET, billing summary, approved documents)
 
-`POST /trips/:id/image` returns `503` if Cloudinary credentials are not set. Provide either `CLOUDINARY_URL` (the one-line form copied from <https://console.cloudinary.com/> → *Product Environment Credentials*) or all three `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` values. The endpoint streams the uploaded buffer to Cloudinary with `quality=auto, fetch_format=auto` and stores the returned `secure_url` + `public_id` on the trip; replacing or deleting a trip cleans up the previous Cloudinary asset.
+### Suppliers (providers)
+- Browse trips and submit offers (description, price, optional PDF/image attachment)
+- Manage profile, billing (SIRET, IBAN, Chorus Pro fields), and **trust documents**
+- Upload insurance / registration / certification files (pending admin approval)
 
-In `production`, the server refuses to boot with placeholder values for `JWT_SECRET` / `ADMIN_BOOTSTRAP_KEY`.
+### Admins
+- Platform stats, user management (suspend, approve services)
+- Edit supplier profiles and approve / reject trust documents
+- Trips, requests, and offers oversight
 
-## Deploy to Render
+### Cross-cutting
+- Auth (register, login, password reset, welcome email via Brevo)
+- In-app notifications
+- Rate limiting on write endpoints
+- Audit log for key actions
+- Destination cover images (Google Places / fallback)
+- Contact form intake
 
-A `render.yaml` blueprint at the repo root provisions a Web Service that runs the
-backend. Two ways to ship:
+---
 
-### One-click (recommended)
+## Architecture
 
-1. Push the repo to GitHub/GitLab.
-2. In Render → **New → Blueprint**, point at the repo. Render reads `render.yaml`,
-   creates the `flunexia-api` Web Service, and auto-generates `JWT_SECRET`.
-3. Fill in the secrets marked `sync: false` in the Render dashboard:
-   - `MONGODB_URI` — your Mongo Atlas connection string (whitelist `0.0.0.0/0`
-     or add Render's egress IPs in Atlas → Network Access).
-   - `CLOUDINARY_URL` — paste from <https://console.cloudinary.com/> →
-     *Product Environment Credentials*.
-   - `ADMIN_BOOTSTRAP_KEY` — any long random string. You'll send it as the
-     `x-admin-bootstrap-key` header when calling `POST /auth/bootstrap-admin`
-     to create the first admin.
-   - `CLIENT_ORIGIN` — the deployed frontend URL (e.g. `https://flunexia.vercel.app`).
-     Comma-separate multiple origins, or use `*` while testing.
-4. First deploy starts automatically. Check `https://<your-service>.onrender.com/api/v1/health`.
-
-### Manual
-
-If you skip the blueprint:
-
-- Service type: **Web Service** → Node, root directory `backend`.
-- Build command: `npm ci`
-- Start command: `node src/server.js`
-- Health check path: `/api/v1/health`
-- Set all env vars from the table above. `JWT_SECRET` must be ≥ 32 chars in
-  production (generate locally with `npm run gen-secret`).
-
-### Free plan caveats
-
-The free plan sleeps after 15 minutes of inactivity (~30-second cold start on
-first request). Upgrade to `starter` for always-on. Free plan also has no
-persistent disk — that's fine because images go to Cloudinary, not local disk.
-
-### Seeding the demo data on Render
-
-Don't run `npm run seed` against production unless you actually want the demo
-trips/users. To seed against the deployed API from your laptop:
-
-```bash
-cd backend
-SEED_API_URL="https://<your-service>.onrender.com/api/v1" \
-ADMIN_BOOTSTRAP_KEY="<the value you set on Render>" \
-  npm run seed
+```
+Client (Web / Mobile)
+        │
+        ▼
+   Express API  ──►  MongoDB Atlas
+        │
+        ├── Cloudinary  (avatars, trip covers, documents, offer attachments)
+        ├── Brevo       (transactional email)
+        └── Google Places (destination images)
 ```
 
-## Scripts
+- **Validation:** Zod schemas per route (`src/middleware/validate.js`)
+- **Auth:** JWT in `Authorization: Bearer <token>` (`src/middleware/auth.middleware.js`)
+- **Errors:** Central handler (`src/middleware/error.middleware.js`)
+
+---
+
+## Prerequisites
+
+- **Node.js** ≥ 20
+- **MongoDB** (Atlas or local)
+- **npm** (lockfile committed — use `npm ci` in production)
+
+Optional but recommended for full functionality:
+
+- [Cloudinary](https://cloudinary.com) — image and document storage
+- [Brevo](https://www.brevo.com) — email (welcome, password reset)
+- Google Cloud — Places API for destination images
+
+---
+
+## Quick start (local)
 
 ```bash
-npm run dev          # nodemon
-npm start            # node src/server.js
-npm run check        # node --check on the entry file
-npm run lint         # eslint .
-npm run gen-secret   # cryptographically random 48-byte token
-npm run seed         # push the mockData fixtures through the live API
+git clone https://github.com/nizam-app/fluenixa_backend.git
+cd fluenixa_backend
+npm ci
+cp .env.example .env   # create from template below if .env.example is missing
+# Edit .env with MONGODB_URI and JWT_SECRET at minimum
+npm run dev
 ```
 
-## Seeding demo data
+API listens on **http://localhost:5000** by default.
 
-`npm run seed` runs `scripts/seed.js`, which mirrors `FLUIDE_WEB_APP/src/data/mockData.js`
-into the database **through the public API**. It creates the admin, organizers,
-providers, four trips, their service requests, offers (including accepted /
-rejected / completed transitions), and a couple of contact messages.
-
-Requirements:
-- API running locally (`npm run dev`).
-- `ADMIN_BOOTSTRAP_KEY` set in `.env` if the admin doesn't exist yet (the seed
-  will fall back to login if the admin is already there).
-- The seed is idempotent — re-running it skips existing users / trips / offers.
-
-Override the password or target URL via env vars:
+Verify:
 
 ```bash
-SEED_API_URL=https://api.example.com/api/v1 SEED_DEMO_PASSWORD='S0meStr0ng!' npm run seed
+curl http://localhost:5000/api/v1/health
 ```
 
-Seeded demo logins (password defaults to `demo123`):
+### Minimal `.env` (development)
 
-| Role | Email |
-| --- | --- |
-| Admin | `admin@flunexia.org` |
-| Organizer | `organizer@flunexia.org`, `marie@stjudes.school`, `contact@goldenage.org`, `sophie@greenvalley.edu`, `lucas@metro.gov` |
-| Provider | `supplier@flunexia.org`, `sales@greenbus.fr`, `orders@citycatering.fr`, `hello@ecotransit.fr`, `contact@metrofacilities.fr` |
+```env
+PORT=5000
+NODE_ENV=development
+MONGODB_URI=mongodb+srv://<user>:<pass>@<cluster>/<db>?retryWrites=true&w=majority
+JWT_SECRET=<at-least-32-random-characters-for-production>
+JWT_EXPIRES_IN=7d
+CLIENT_ORIGIN=http://localhost:5173
+```
+
+---
+
+## Environment variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `MONGODB_URI` | **Yes** | MongoDB connection string |
+| `JWT_SECRET` | **Yes** | Signing secret (≥ 32 chars in production) |
+| `JWT_EXPIRES_IN` | No | Token TTL (default `7d`) |
+| `PORT` | No | HTTP port (default `5000`) |
+| `NODE_ENV` | No | `development` \| `production` |
+| `CLIENT_ORIGIN` | No | Comma-separated CORS origins |
+| `TRUST_PROXY` | No | Set `true` behind nginx / reverse proxy |
+| `MAX_UPLOAD_BYTES` | No | Upload limit in bytes (default 5 MB) |
+| `CLOUDINARY_URL` | No* | `cloudinary://key:secret@cloud_name` |
+| `CLOUDINARY_CLOUD_NAME` | No* | Alternative to `CLOUDINARY_URL` |
+| `CLOUDINARY_API_KEY` | No* | With cloud name + secret |
+| `CLOUDINARY_API_SECRET` | No* | With cloud name + key |
+| `BREVO_API_KEY` | No* | Brevo transactional email |
+| `BREVO_FROM_EMAIL` | No | Sender email |
+| `BREVO_FROM_NAME` | No | Sender display name |
+| `APP_URL` | No | Public web app URL (links in emails) |
+| `GOOGLE_PLACES_API_KEY` | No | Destination image lookup |
+| `ADMIN_BOOTSTRAP_KEY` | No | One-time admin bootstrap (`POST /auth/bootstrap-admin`) |
+| `SEED_API_URL` | No | Target API for `npm run seed` |
+| `SEED_DEMO_PASSWORD` | No | Password for seeded demo users |
+
+\*Required for the related feature to work in production (uploads, email, etc.).
+
+### Production CORS example
+
+```env
+CLIENT_ORIGIN=http://localhost:5173,https://fluide-web-app.vercel.app,https://flunexia.fr,https://www.flunexia.fr
+```
+
+### Brevo on VPS
+
+Whitelist the server IP in Brevo (or disable IP restriction) so welcome and reset emails are delivered.
+
+---
+
+## npm scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start with nodemon (hot reload) |
+| `npm start` | Production start (`node src/server.js`) |
+| `npm run check` | Syntax-check entry file |
+| `npm run lint` | ESLint |
+| `npm run gen-secret` | Generate a random `JWT_SECRET` |
+| `npm run seed` | Seed demo users, trips, requests via HTTP API |
+| `npm run postman:generate` | Generate Postman collection |
+
+---
 
 ## API surface
 
-All endpoints sit under `/api/v1`. Auth: `Authorization: Bearer <JWT>`.
+Base path: **`/api/v1`**
 
-### Public
+| Prefix | Purpose |
+|--------|---------|
+| `/auth` | Register, login, logout, me, password reset, bootstrap admin |
+| `/users` | Profile, avatar, documents, public supplier profiles |
+| `/trips` | CRUD, duplicate, cover image, recommended providers |
+| `/requests` | Service requests, messages, history, nested offers |
+| `/offers` | List, detail, status updates, provider edits |
+| `/favorites` | Organizer favorite suppliers |
+| `/notifications` | User notifications |
+| `/admin` | Stats, users, trips, requests, offers, supplier management |
+| `/contact` | Public contact submissions |
+| `/utils` | Destination image proxy, helpers |
+| `/mobile` | Mobile-optimized aggregates |
+| `/devices` | Push device registration |
 
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/health` | Liveness probe |
-| `POST` | `/auth/register` | Create an organizer or provider account |
-| `POST` | `/auth/login` | Issue a JWT |
-| `POST` | `/auth/forgot-password` | Request password reset (`resetToken` returned in non-production) |
-| `POST` | `/auth/reset-password` | Complete reset with `{ token, newPassword }` |
-| `POST` | `/auth/bootstrap-admin` | Create the very first admin (once only) |
-| `POST` | `/contact` | Submit a public contact-form message |
+Interactive exploration: run `npm run postman:generate` or import routes from `src/modules/**/**.routes.js`.
 
-### Authenticated
+---
 
-| Method | Path | Role(s) | Description |
-| --- | --- | --- | --- |
-| `GET` | `/auth/me` | any | Current user |
-| `POST` | `/auth/logout` | any | Stateless logout |
-| `GET` | `/users/me` | any | Profile |
-| `PATCH` | `/users/me` | any | Update name / organizationType / providerType |
-| `PATCH` | `/users/me/password` | any | Change password |
-| `GET` | `/trips` | any | Role-scoped listing (`status`, `needType`, `q`) |
-| `POST` | `/trips` | organizer | Create trip |
-| `GET` | `/trips/:id` | any | Fetch one (provider sees only public statuses) |
-| `PATCH` | `/trips/:id` | organizer/admin | Update trip |
-| `DELETE` | `/trips/:id` | organizer/admin | Delete trip (cascades to requests + offers) |
-| `POST` | `/trips/:id/image` | organizer/admin | Multipart `image` upload (≤5 MiB, jpg/png/webp/gif) |
-| `GET` | `/requests` | any | Role-scoped listing |
-| `POST` | `/requests` | organizer | Create a service request on a trip you own |
-| `GET` | `/requests/:id` | any | Fetch one |
-| `PATCH` | `/requests/:id/status` | organizer/provider/admin | Update status (provider limited to `completed`/`cancelled`) |
-| `GET` | `/requests/:requestId/offers` | any | List offers for a request |
-| `POST` | `/requests/:requestId/offers` | provider | Submit an offer (one per provider per request) |
-| `GET` | `/offers` | any | Role-scoped listing |
-| `GET` | `/offers/:id` | any | Fetch one |
-| `PATCH` | `/offers/:id/status` | organizer/provider/admin | Accept / reject / withdraw — accepting auto-rejects siblings and flips the parent request, transactionally |
+## User roles
 
-### Admin
+| Role | `role` value | Description |
+|------|----------------|-------------|
+| Admin | `admin` | Full platform management |
+| Organizer | `organizer` | Creates trips and requests |
+| Supplier | `provider` | Submits offers and manages supplier profile |
 
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/admin/stats` | Counts and groupings |
-| `GET` | `/admin/users` | List users (`role`, `status`, `q`) |
-| `POST` | `/admin/users` | Create user |
-| `PATCH` | `/admin/users/:id/status` | Suspend / reactivate |
-| `GET` | `/admin/trips` | All trips |
-| `GET` | `/admin/requests` | All requests |
-| `GET` | `/admin/offers` | All offers |
-| `GET` | `/contact` | Inbox of contact messages |
-| `PATCH` | `/contact/:id/status` | Triage a message |
+Supplier **service types** (transport, accommodation, etc.) may require **admin approval** when multiple types are requested at registration.
 
-### Mobile (native app + shared resources)
+---
 
-| Method | Path | Auth | Description |
-| --- | --- | --- | --- |
-| `GET` | `/mobile/config` | no | App config, need types, account types, feature flags |
-| `GET` | `/mobile/help` | no | FAQ / support copy for Help screens |
-| `GET` | `/mobile/dashboard` | yes | Role-based home summary (stats + recent items) |
-| `GET` | `/notifications` | yes | In-app notification inbox (`read`, `page`, `limit`) |
-| `PATCH` | `/notifications/:id/read` | yes | Mark notification read |
-| `PATCH` | `/notifications/read-all` | yes | Mark all read |
-| `POST` | `/devices/register` | yes | Register push token (`token`, `platform`, `appVersion`) |
-| `POST` | `/devices/unregister` | yes | Remove push token |
-| `GET` | `/devices` | yes | List registered devices |
+## File uploads
 
-List endpoints (`/trips`, `/requests`, `/offers`) accept optional `page` and `limit` for mobile scrolling.
+Uploads use **multer** (in-memory) and **Cloudinary**.
 
-Full mobile integration guide: [`docs/MOBILE_API.md`](docs/MOBILE_API.md).  
-Stitch mobile UI: [project 902928306854417353](https://stitch.withgoogle.com/projects/902928306854417353).
+| Endpoint | Field | Types |
+|----------|-------|--------|
+| `POST /users/me/avatar` | `image` | JPEG, PNG, WebP, GIF |
+| `POST /users/me/documents` | `file` | Images + PDF |
+| `POST /requests/:requestId/offers` | `attachment` | Images + PDF (quote) |
+| `POST /trips` / `POST /trips/:id/image` | `image` | Trip cover |
 
-See `requests.http` for runnable examples, or import the full **Postman collection** from `postman/` (`npm run postman:generate` to refresh it).
+Documents uploaded by suppliers default to **`pending`** until an admin approves them.
 
-## Error shape
+---
 
-```json
-{
-  "success": false,
-  "message": "Validation failed",
-  "details": [{ "path": "email", "message": "Email must be valid" }]
-}
+## Production deployment (VPS)
+
+Typical flow on Ubuntu with **PM2** and **nginx**:
+
+```bash
+cd /var/www/backend
+git pull origin main
+npm ci
+pm2 restart all --update-env
 ```
 
-`details` is included for Zod / Mongoose validation errors. Stack traces are included in non-production environments.
+Checklist after deploy:
 
-## Rate limits
+1. `.env` present with production values
+2. `NODE_ENV=production`
+3. `TRUST_PROXY=true` if behind nginx
+4. `CLIENT_ORIGIN` includes the live web app URL
+5. `pm2 logs` — no boot errors (JWT / MongoDB)
+6. `curl https://api.flunexia.fr/api/v1/health`
 
-- `authLimiter` — 20 requests / 15 min on `/auth/register`, `/auth/login`, `/auth/bootstrap-admin`.
-- `contactLimiter` — 10 requests / hour on `POST /contact`.
-- `writeLimiter` — 60 requests / minute on all mutating endpoints.
+nginx should proxy to `localhost:5000` and terminate TLS for `api.flunexia.fr`.
 
-Limits are disabled when `NODE_ENV=test`.
-
-## Transactions & cascades
-
-- Accepting an offer (`PATCH /offers/:id/status` with `accepted`) runs in a Mongoose transaction: the offer is set to `accepted`, sibling submitted offers are rejected, and the parent request is flipped to `accepted` with `provider` / `acceptedOffer` populated. Standalone (non-replica-set) MongoDB falls back to best-effort sequential writes.
-- Deleting a trip cascades: dependent `ServiceRequest`s and their `Offer`s are removed.
+---
 
 ## Docker
 
 ```bash
-docker build -t flunexia-api ./backend
-docker run --env-file backend/.env -p 5000:5000 flunexia-api
+docker build -t flunexia-api .
+docker run --env-file .env -p 5000:5000 flunexia-api
 ```
 
-## Folder layout
+The image includes CA certificates for outbound HTTPS (Brevo, Cloudinary, MongoDB Atlas).
+
+---
+
+## Demo data
+
+With the API running and `ADMIN_BOOTSTRAP_KEY` set:
+
+```bash
+npm run seed
+```
+
+Default demo password: **`demo123`** (override with `SEED_DEMO_PASSWORD`).
+
+| Role | Email |
+|------|--------|
+| Admin | `admin@flunexia.org` |
+| Organizer | `organizer@flunexia.org` |
+| Supplier | `supplier@flunexia.org` |
+
+Use seed data only in **staging / demo** environments — not in production with real user data.
+
+---
+
+## Security notes
+
+- Never commit `.env` or secrets to git
+- Use a strong unique `JWT_SECRET` (≥ 32 characters) in production
+- Restrict `ADMIN_BOOTSTRAP_KEY` and disable bootstrap after first admin exists
+- Keep dependencies updated: `npm audit`
+- Rate limits apply to auth and write endpoints
+- IBAN is stored for suppliers; public organizer views receive a **masked** IBAN only
+
+---
+
+## Project structure
 
 ```
-backend/
-├── Dockerfile / .dockerignore
-├── eslint.config.js
-├── package.json
-├── requests.http
-├── scripts/
-│   └── gen-secret.js
-├── uploads/                 # local image storage (gitignored)
-└── src/
-    ├── app.js               # Express factory (helmet, cors, morgan, routers, error handler)
-    ├── server.js            # bootstrap + graceful shutdown
-    ├── config/
-    │   ├── db.js
-    │   └── env.js           # loads + validates env vars
-    ├── middleware/
-    │   ├── auth.middleware.js
-    │   ├── error.middleware.js
-    │   ├── rateLimit.js
-    │   ├── upload.js        # multer image uploader
-    │   └── validate.js      # Zod request validator
-    ├── modules/
-    │   ├── auth/            controller + routes + user model + Zod schemas
-    │   ├── users/
-    │   ├── trips/
-    │   ├── requests/
-    │   ├── offers/
-    │   ├── admin/
-    │   └── contact/
-    └── utils/
-        ├── asyncHandler.js
-        ├── httpError.js
-        └── jwt.js
+src/
+├── app.js                 # Express app & route mounting
+├── server.js              # HTTP server bootstrap
+├── config/                # env, database
+├── constants/             # Provider types, document categories
+├── middleware/            # auth, upload, validate, rate limit
+├── modules/
+│   ├── auth/              # Users, login, register
+│   ├── trips/             # Trips & itineraries
+│   ├── requests/          # Service requests
+│   ├── offers/            # Supplier offers
+│   ├── users/             # Profiles & documents
+│   ├── admin/             # Administration
+│   ├── favorites/
+│   ├── notifications/
+│   └── ...
+├── services/              # email, cloudinary, notifications, audit
+└── utils/
+scripts/                   # seed, postman, utilities
 ```
-#   f l u e n i x a _ b a c k e n d 
- 
- 
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely cause |
+|---------|----------------|
+| CORS error from web app | `CLIENT_ORIGIN` missing the frontend URL |
+| Welcome email not sent | Brevo API key or server IP not whitelisted |
+| Upload returns 503 | Cloudinary env vars not set |
+| `Route not found` after git pull | PM2 not restarted (`pm2 restart all --update-env`) |
+| 401 on all routes | Expired or missing JWT |
+
+---
+
+## Related repositories
+
+- **Web app:** [github.com/nizam-app/fluide_web_app](https://github.com/nizam-app/fluide_web_app)  
+- **Production web:** [https://fluide-web-app.vercel.app](https://fluide-web-app.vercel.app)
+
+---
+
+## License
+
+ISC — see `package.json`. Proprietary to Flunexia / project owner unless otherwise agreed in contract.
