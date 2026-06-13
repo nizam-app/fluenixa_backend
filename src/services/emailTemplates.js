@@ -312,6 +312,57 @@ function renderNotificationEmail({ type, user, metadata = {}, appUrl, tripId }) 
   }
 }
 
+function renderContactFormEmail({ name, email, role, message, messageId }) {
+  const roleLabels = {
+    organizer: 'Organizer',
+    supplier: 'Supplier',
+    other: 'Other',
+  }
+  const roleLabel = roleLabels[role] || role || 'Other'
+  const safeName = escapeHtml(name)
+  const safeEmail = escapeHtml(email)
+  const safeMessage = escapeHtml(message)
+  const safeId = escapeHtml(messageId)
+
+  const bodyHtml = `
+    <p style="margin:0 0 16px;">A new message was submitted via the <strong>Flunexia contact form</strong>.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:0 0 20px;">
+      <tr><td style="padding:8px 0;color:#718096;font-size:13px;width:120px;vertical-align:top;">Name</td><td style="padding:8px 0;font-size:15px;"><strong>${safeName}</strong></td></tr>
+      <tr><td style="padding:8px 0;color:#718096;font-size:13px;vertical-align:top;">Email</td><td style="padding:8px 0;font-size:15px;"><a href="mailto:${safeEmail}" style="color:#2D6A4F;">${safeEmail}</a></td></tr>
+      <tr><td style="padding:8px 0;color:#718096;font-size:13px;vertical-align:top;">Role</td><td style="padding:8px 0;font-size:15px;">${escapeHtml(roleLabel)}</td></tr>
+      ${messageId ? `<tr><td style="padding:8px 0;color:#718096;font-size:13px;vertical-align:top;">Reference</td><td style="padding:8px 0;font-size:13px;font-family:monospace;">${safeId}</td></tr>` : ''}
+    </table>
+    <p style="margin:0 0 8px;font-weight:600;">Message</p>
+    <p style="margin:0;padding:16px;background:#f7fafc;border-radius:12px;border:1px solid #e2e8f0;white-space:pre-wrap;line-height:1.65;">${safeMessage}</p>
+  `
+
+  const subject = `[Flunexia Contact] ${name} (${roleLabel})`
+  const textContent = [
+    'New Flunexia contact form message',
+    '',
+    `Name: ${name}`,
+    `Email: ${email}`,
+    `Role: ${roleLabel}`,
+    messageId ? `Reference: ${messageId}` : '',
+    '',
+    'Message:',
+    message,
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  return {
+    subject,
+    htmlContent: renderEmailLayout({
+      locale: 'en',
+      bodyHtml,
+      ctaHref: `mailto:${email}`,
+      ctaLabel: 'Reply to sender',
+    }),
+    textContent,
+  }
+}
+
 function welcomeMessageForRole(role, locale, { pendingApproval = false } = {}) {
   const fr = locale === 'fr'
   if (role === 'provider') {
@@ -333,6 +384,7 @@ module.exports = {
   buildTemplateContext,
   formatAmount,
   formatOfferDate,
+  renderContactFormEmail,
   renderNotificationEmail,
   welcomeMessageForRole,
 }

@@ -1,5 +1,6 @@
 const { asyncHandler } = require('../../utils/asyncHandler')
 const { HttpError } = require('../../utils/httpError')
+const { sendContactFormEmail } = require('../../services/email')
 const { ContactMessage } = require('./contact.model')
 
 function getClientIp(req) {
@@ -20,10 +21,23 @@ const createContactMessage = asyncHandler(async (req, res) => {
     userAgent: req.headers['user-agent']?.slice(0, 500),
   })
 
+  const emailResult = await sendContactFormEmail({
+    name: message.name,
+    email: message.email,
+    role: message.role,
+    message: message.message,
+    messageId: String(message._id),
+  })
+
+  if (!emailResult.sent) {
+    console.warn('[contact] inbox email not delivered:', emailResult.reason, emailResult.detail || '')
+  }
+
   res.status(201).json({
     success: true,
     message: 'Thanks for reaching out, we will get back to you soon',
     contact: message.toJSON(),
+    emailDelivered: emailResult.sent,
   })
 })
 

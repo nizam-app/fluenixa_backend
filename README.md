@@ -173,8 +173,10 @@ CLIENT_ORIGIN=http://localhost:5173
 ### Production CORS example
 
 ```env
-CLIENT_ORIGIN=http://localhost:5173,https://fluide-web-app.vercel.app,https://flunexia.fr,https://www.flunexia.fr
+CLIENT_ORIGIN=http://localhost:5173,https://staging.flunexia.fr,https://flunexia.fr,https://www.flunexia.fr
 ```
+
+Set `APP_URL` to the live web URL (`https://staging.flunexia.fr` during testing, then `https://flunexia.fr`).
 
 ### Brevo on VPS
 
@@ -353,7 +355,8 @@ scripts/                   # seed, postman, utilities
 ## Related repositories
 
 - **Web app:** [github.com/nizam-app/fluide_web_app](https://github.com/nizam-app/fluide_web_app)  
-- **Production web:** [https://fluide-web-app.vercel.app](https://fluide-web-app.vercel.app)
+- **Staging web:** [https://staging.flunexia.fr](https://staging.flunexia.fr)  
+- **Production web (after testing):** [https://flunexia.fr](https://flunexia.fr)  
 
 ---
 

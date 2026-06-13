@@ -1,6 +1,6 @@
 const { loadEnv } = require('../config/env')
 const { normalizeLocale } = require('../constants/locales')
-const { renderNotificationEmail, welcomeMessageForRole } = require('./emailTemplates')
+const { renderContactFormEmail, renderNotificationEmail, welcomeMessageForRole } = require('./emailTemplates')
 
 function isValidAppUrl(value) {
   if (!value || value === '*') return false
@@ -27,7 +27,7 @@ function resolveAppUrl(env) {
   if (clientOrigins[0]) return clientOrigins[0].replace(/\/$/, '')
 
   return env.isProduction
-    ? 'https://fluide-web-app.vercel.app'
+    ? 'https://staging.flunexia.fr'
     : 'http://localhost:5173'
 }
 
@@ -59,7 +59,7 @@ function getEmailStatus() {
   }
 }
 
-async function sendTransactionalEmail({ toEmail, toName, subject, htmlContent, textContent }) {
+async function sendTransactionalEmail({ toEmail, toName, subject, htmlContent, textContent, replyTo }) {
   const config = getEmailConfig()
   if (!config.enabled || !toEmail) {
     return { sent: false, reason: 'email_not_configured' }
@@ -67,6 +67,18 @@ async function sendTransactionalEmail({ toEmail, toName, subject, htmlContent, t
 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), 15000)
+
+  const payload = {
+    sender: { name: config.fromName, email: config.fromEmail },
+    to: [{ email: toEmail, name: toName || toEmail }],
+    subject,
+    htmlContent,
+    textContent: textContent || htmlContent.replace(/<[^>]+>/g, ' '),
+  }
+
+  if (replyTo?.email) {
+    payload.replyTo = { email: replyTo.email, name: replyTo.name || replyTo.email }
+  }
 
   let response
   try {
@@ -77,13 +89,7 @@ async function sendTransactionalEmail({ toEmail, toName, subject, htmlContent, t
         'content-type': 'application/json',
         'api-key': config.apiKey,
       },
-      body: JSON.stringify({
-        sender: { name: config.fromName, email: config.fromEmail },
-        to: [{ email: toEmail, name: toName || toEmail }],
-        subject,
-        htmlContent,
-        textContent: textContent || htmlContent.replace(/<[^>]+>/g, ' '),
-      }),
+      body: JSON.stringify(payload),
       signal: controller.signal,
     })
   } catch (error) {
@@ -158,10 +164,31 @@ async function sendWelcomeEmail(user, { pendingApproval = false, email } = {}) {
   })
 }
 
+function getContactInboxEmail() {
+  const env = loadEnv()
+  return env.contactInboxEmail || 'contact@flunexia.fr'
+}
+
+async function sendContactFormEmail({ name, email, role, message, messageId }) {
+  const inbox = getContactInboxEmail()
+  const template = renderContactFormEmail({ name, email, role, message, messageId })
+
+  return sendTransactionalEmail({
+    toEmail: inbox,
+    toName: 'Flunexia Contact',
+    subject: template.subject,
+    htmlContent: template.htmlContent,
+    textContent: template.textContent,
+    replyTo: { email, name },
+  })
+}
+
 module.exports = {
   getEmailConfig,
   getEmailStatus,
+  getContactInboxEmail,
   isConfigured,
+  sendContactFormEmail,
   sendNotificationEmail,
   sendTransactionalEmail,
   sendWelcomeEmail,

@@ -55,6 +55,7 @@ function loadEnv() {
     brevoFromEmail: process.env.BREVO_FROM_EMAIL || 'noreply@flunexia.org',
     brevoFromName: process.env.BREVO_FROM_NAME || 'Flunexia',
     appUrl: process.env.APP_URL || '',
+    contactInboxEmail: (process.env.CONTACT_INBOX_EMAIL || 'contact@flunexia.fr').trim().toLowerCase(),
     googlePlacesApiKey: process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_MAPS_API_KEY || '',
     unsplashAccessKey: process.env.UNSPLASH_ACCESS_KEY || '',
   }
